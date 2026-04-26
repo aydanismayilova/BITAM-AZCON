@@ -26,7 +26,7 @@ def _score_offer(offer: VendorOffer, vendor: Vendor):
     }
 
 
-def run_recommendation_pipeline(db: Session, purchase_request: PurchaseRequest):
+def run_recommendation_pipeline(db: Session, purchase_request: PurchaseRequest, top_n: int = 3):
     query = _normalize_query(purchase_request)
     now = datetime.utcnow()
 
@@ -61,8 +61,27 @@ def run_recommendation_pipeline(db: Session, purchase_request: PurchaseRequest):
             }
         )
 
-    ranked.sort(key=lambda r: (not r["trusted"], -r["scores"]["total"]))
-    result_payload = ranked[:5]
+        open_shipments = (
+            db.query(PurchaseRequest.vendor_id)
+            .filter(
+                PurchaseRequest.vendor_id.is_not(None),
+                PurchaseRequest.delivery_date.is_not(None),
+                PurchaseRequest.company_id != purchase_request.company_id,
+            )
+            .all()
+        )
+
+        open_vendor_ids = {row[0] for row in open_shipments if row[0]}
+        for row in ranked:
+            if row["vendor_id"] in open_vendor_ids:
+                row["scores"]["total"] = round(row["scores"]["total"] + 12, 2)
+                row["reasoning"] = (
+                    "Bu şirkət seçildi, çünki hazırda digər AZCON şirkəti də bu vendordan yük gözləyir. "
+                    "Karqo birləşdirilsə xərc yarıya enəcək."
+                )
+
+    ranked.sort(key=lambda r: (not r["trusted"], -r["scores"]["total"], r["lead_time_days"], r["price"]))
+    result_payload = ranked[: min(max(top_n, 1), 10)]
 
     expires = now + timedelta(days=7)
     db.add(

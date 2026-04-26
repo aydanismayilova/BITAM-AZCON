@@ -35,6 +35,8 @@ class Company(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(120), unique=True, index=True)
     code: Mapped[str] = mapped_column(String(30), unique=True, index=True)
+    about: Mapped[str | None] = mapped_column(Text, nullable=True)
+    success_rate: Mapped[float] = mapped_column(Float, default=75.0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     users = relationship("User", back_populates="company")
@@ -52,6 +54,7 @@ class User(Base):
     password: Mapped[str] = mapped_column(String(120))
     role: Mapped[Role] = mapped_column(Enum(Role), index=True)
     company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id"), nullable=True)
+    department: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     company = relationship("Company", back_populates="users")
@@ -94,6 +97,12 @@ class PurchaseRequest(Base):
     budget_min: Mapped[float | None] = mapped_column(Float, nullable=True)
     budget_max: Mapped[float | None] = mapped_column(Float, nullable=True)
     required_by: Mapped[str] = mapped_column(String(40))
+    department: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+    item_type: Mapped[str] = mapped_column(String(20), default="product")
+    vendor_id: Mapped[int | None] = mapped_column(ForeignKey("vendors.id"), nullable=True, index=True)
+    delivery_date: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
+    shipping_cost: Mapped[float] = mapped_column(Float, default=1000.0)
+    shipment_batch_id: Mapped[int | None] = mapped_column(ForeignKey("shipment_batches.id"), nullable=True, index=True)
     status: Mapped[RequestStatus] = mapped_column(Enum(RequestStatus), default=RequestStatus.SUBMITTED)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
@@ -110,6 +119,9 @@ class Vendor(Base):
     quality_score: Mapped[float] = mapped_column(Float, default=50.0)
     delivery_score: Mapped[float] = mapped_column(Float, default=50.0)
     commercial_score: Mapped[float] = mapped_column(Float, default=50.0)
+    about: Mapped[str | None] = mapped_column(Text, nullable=True)
+    avg_price_index: Mapped[float] = mapped_column(Float, default=50.0)
+    typical_delivery_days: Mapped[int] = mapped_column(Integer, default=7)
 
 
 class VendorOffer(Base):
@@ -146,8 +158,18 @@ class RegistrationRequest(Base):
     email: Mapped[str] = mapped_column(String(120), unique=True, index=True)
     password: Mapped[str] = mapped_column(String(120))
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    department: Mapped[str] = mapped_column(String(120))
     requested_role: Mapped[Role] = mapped_column(Enum(Role))
     status: Mapped[RegistrationStatus] = mapped_column(Enum(RegistrationStatus), default=RegistrationStatus.PENDING)
     reviewed_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+class ShipmentBatch(Base):
+    __tablename__ = "shipment_batches"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    vendor_id: Mapped[int] = mapped_column(ForeignKey("vendors.id"), index=True)
+    delivery_date: Mapped[str] = mapped_column(String(40), index=True)
+    shipping_discount_ratio: Mapped[float] = mapped_column(Float, default=0.5)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

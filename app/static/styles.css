@@ -404,6 +404,16 @@ textarea {
   min-height: 70px;
 }
 
+.output-xl {
+  min-height: 120px;
+  max-height: 420px;
+}
+
+.btn-small {
+  padding: 5px 9px;
+  font-size: 12px;
+}
+
 .hidden {
   display: none !important;
 }

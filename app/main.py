@@ -19,6 +19,7 @@ from app.models import (
     RegistrationStatus,
     Role,
     ShortageAlert,
+    ShipmentBatch,
     User,
     Vendor,
     VendorOffer,
@@ -39,12 +40,75 @@ from app.schemas import (
 
 app = FastAPI(title="AZCON Procurement API", version="0.1.0")
 
+COMPANY_DEPARTMENTS = {
+    "Bakı Metropoliteni QSC": ["İnfrastruktur", "Enerji", "HR/İnzibati", "Satınalma"],
+    "AZAL": ["Yük Terminalı", "Uçuş Əməliyyatları", "HR/İnzibati", "Satınalma"],
+    "Aztelekom MMC": ["Şəbəkə Əməliyyatları", "Data Mərkəzi", "HR/İnzibati", "Satınalma"],
+    "Azərbaycan Dəmir Yolları (ADY)": ["İnfrastruktur", "Lokomotiv", "HR/İnzibati", "Satınalma"],
+    "Bakı Limanı": ["Liman Logistikası", "Yük Terminalı", "HR/İnzibati", "Satınalma"],
+}
+
+EXPENSIVE_NEEDS = {
+    "Bakı Metropoliteni QSC": [
+        "Eskalator ehtiyat hissələri",
+        "Yüksək gərginlikli yeraltı kabellər",
+        "Sərnişin nəzarət (turniket) sistemləri",
+        "Ventilyasiya motorları",
+    ],
+    "Aztelekom MMC": [
+        "Cisco Enterprise Switch-lər",
+        "Fiber-optik kabellər (kilometr qeydi ilə)",
+        "Server steykləri",
+        "Palo Alto Firewall cihazları",
+    ],
+    "AZAL": [
+        "Yük terminalı üçün avtokarlar (Forklift)",
+        "Logistika skanerləri",
+        "Anbar işçiləri üçün smart qoruyucu geyimlər",
+        "Təhlükəsizlik kameraları şəbəkəsi",
+    ],
+    "Bakı Limanı": [
+        "Yük terminalı üçün avtokarlar (Forklift)",
+        "Logistika skanerləri",
+        "Anbar işçiləri üçün smart qoruyucu geyimlər",
+        "Təhlükəsizlik kameraları şəbəkəsi",
+    ],
+}
+
+HR_NEEDS = [
+    "Herman Miller ofis kresloları",
+    "MacBook Pro / Dell noutbukları",
+    "Server otağı üçün UPS sistemləri",
+]
 
 def run_light_migrations():
     with engine.begin() as conn:
-        cols = [row[1] for row in conn.execute(text("PRAGMA table_info(users)")).fetchall()]
-        if "username" not in cols:
+        users_cols = [row[1] for row in conn.execute(text("PRAGMA table_info(users)")).fetchall()]
+        if "username" not in users_cols:
             conn.execute(text("ALTER TABLE users ADD COLUMN username VARCHAR(120)"))
+        if "department" not in users_cols:
+            conn.execute(text("ALTER TABLE users ADD COLUMN department VARCHAR(120)"))
+        company_cols = [row[1] for row in conn.execute(text("PRAGMA table_info(companies)")).fetchall()]
+        if "about" not in company_cols:
+            conn.execute(text("ALTER TABLE companies ADD COLUMN about TEXT"))
+        if "success_rate" not in company_cols:
+            conn.execute(text("ALTER TABLE companies ADD COLUMN success_rate FLOAT DEFAULT 75"))
+
+        reg_cols = [row[1] for row in conn.execute(text("PRAGMA table_info(registration_requests)")).fetchall()]
+        if reg_cols and "department" not in reg_cols:
+            conn.execute(text("ALTER TABLE registration_requests ADD COLUMN department VARCHAR(120) DEFAULT 'Satınalma'"))
+
+        req_cols = [row[1] for row in conn.execute(text("PRAGMA table_info(purchase_requests)")).fetchall()]
+        for statement, col_name in [
+            ("ALTER TABLE purchase_requests ADD COLUMN department VARCHAR(120)", "department"),
+            ("ALTER TABLE purchase_requests ADD COLUMN item_type VARCHAR(20) DEFAULT 'product'", "item_type"),
+            ("ALTER TABLE purchase_requests ADD COLUMN vendor_id INTEGER", "vendor_id"),
+            ("ALTER TABLE purchase_requests ADD COLUMN delivery_date VARCHAR(40)", "delivery_date"),
+            ("ALTER TABLE purchase_requests ADD COLUMN shipping_cost FLOAT DEFAULT 1000", "shipping_cost"),
+            ("ALTER TABLE purchase_requests ADD COLUMN shipment_batch_id INTEGER", "shipment_batch_id"),
+        ]:
+            if col_name not in req_cols:
+                conn.execute(text(statement))
 
 
 run_light_migrations()
@@ -62,6 +126,7 @@ def ensure_general_admin():
                 email="faigtayibov@azcon.ai",
                 password="1234",
                 role=Role.PLATFORM_ADMIN,
+                department="Platform",
                 is_active=True,
             )
             db.add(admin)
@@ -100,6 +165,14 @@ def ensure_default_usernames():
 
 
 ensure_default_usernames()
+
+def get_expense_mock(company_name: str):
+    return {
+        "company_name": company_name,
+        "last_year": {"İnfrastruktur": 1_420_000, "Satınalma": 910_000, "HR/İnzibati": 320_000, "IT": 510_000},
+        "this_year": {"İnfrastruktur": 1_650_000, "Satınalma": 1_040_000, "HR/İnzibati": 355_000, "IT": 575_000},
+    }
+
 static_dir = Path(__file__).resolve().parent / "static"
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
@@ -141,12 +214,17 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
         "role": user.role.value,
         "company_id": user.company_id,
         "company_name": company_name,
+        "department": user.department,
     }
 
 
 @app.get("/companies-public")
 def list_companies_public(db: Session = Depends(get_db)):
     return db.query(Company).order_by(Company.name.asc()).all()
+
+@app.get("/meta/company-departments")
+def company_departments():
+    return COMPANY_DEPARTMENTS
 
 
 @app.post("/auth/register-request")
@@ -174,6 +252,7 @@ def create_registration_request(payload: RegistrationRequestCreate, db: Session 
         email=payload.email,
         password=payload.password,
         company_id=company.id,
+        department=payload.department,
         requested_role=payload.requested_role,
         status=RegistrationStatus.PENDING,
     )
@@ -201,6 +280,7 @@ def create_user(payload: UserCreate, db: Session = Depends(get_db)):
         password=payload.password,
         role=payload.role,
         company_id=payload.company_id,
+        department=payload.department,
     )
     db.add(user)
     db.commit()
@@ -376,6 +456,10 @@ def list_requests(
             "status": req.status.value,
             "quantity": req.quantity,
             "required_by": req.required_by,
+            "department": req.department,
+            "delivery_date": req.delivery_date,
+            "shipping_cost": req.shipping_cost,
+            "vendor_id": req.vendor_id,
             "company_name": company.name,
             "requested_by": requester.full_name,
         }
@@ -402,6 +486,7 @@ def list_registration_requests(
             "username": req.username,
             "email": req.email,
             "company_name": company.name,
+            "department": req.department,
             "requested_role": req.requested_role.value,
             "created_at": req.created_at.isoformat(),
         }
@@ -435,6 +520,7 @@ def approve_registration_request(
         password=req.password,
         role=req.requested_role,
         company_id=req.company_id,
+        department=req.department,
         is_active=True,
     )
     db.add(user)
@@ -464,11 +550,49 @@ def create_purchase_request(
         budget_max=payload.budget_max,
         required_by=payload.required_by,
         status=RequestStatus.SUBMITTED,
+        department=payload.department or current_user.department,
+        item_type=payload.item_type,
+        vendor_id=payload.vendor_id,
+        delivery_date=payload.delivery_date or payload.required_by,
+        shipping_cost=payload.shipping_cost,
     )
     db.add(req)
     db.commit()
     db.refresh(req)
-    return req
+    batch_message = None
+    if req.vendor_id and req.delivery_date:
+        existing = (
+            db.query(PurchaseRequest)
+            .filter(
+                PurchaseRequest.vendor_id == req.vendor_id,
+                PurchaseRequest.delivery_date == req.delivery_date,
+                PurchaseRequest.company_id != req.company_id,
+            )
+            .order_by(PurchaseRequest.id.desc())
+            .first()
+        )
+        if existing:
+            batch_id = existing.shipment_batch_id
+            if not batch_id:
+                batch = ShipmentBatch(vendor_id=req.vendor_id, delivery_date=req.delivery_date, shipping_discount_ratio=0.5)
+                db.add(batch)
+                db.commit()
+                db.refresh(batch)
+                existing.shipment_batch_id = batch.id
+                existing.shipping_cost = round(existing.shipping_cost * 0.5, 2)
+                batch_id = batch.id
+            req.shipment_batch_id = batch_id
+            req.shipping_cost = round(req.shipping_cost * 0.5, 2)
+            db.commit()
+            batch_message = "📦 Ortaq Çatdırılma: Digər departamentlə eyni vaxta düşdüyü üçün karqo xərci 50% azaldı!"
+
+    return {
+        "request_id": req.id,
+        "title": req.title,
+        "shipping_cost": req.shipping_cost,
+        "shipment_batch_id": req.shipment_batch_id,
+        "shared_logistics_badge": batch_message,
+    }
 
 
 @app.post("/vendors")
@@ -500,6 +624,7 @@ def create_vendor_offer(
 @app.post("/requests/{request_id}/recommend")
 def recommend_for_request(
     request_id: int,
+    top_n: int = 3,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(Role.PROCUREMENT_DECIDER, Role.COMPANY_ADMIN, Role.PLATFORM_ADMIN)),
 ):
@@ -508,7 +633,53 @@ def recommend_for_request(
         raise HTTPException(status_code=404, detail="Request not found")
     require_same_company_or_admin(req.company_id, current_user)
 
-    recommendation = run_recommendation_pipeline(db, req)
+    recommendation = run_recommendation_pipeline(db, req, top_n=top_n)
     req.status = RequestStatus.RECOMMENDED
     db.commit()
     return recommendation
+
+@app.get("/catalog/expensive-items")
+def expensive_items(company_name: str, department: str):
+    company_specific = EXPENSIVE_NEEDS.get(company_name, [])
+    if department.lower().startswith("hr"):
+        company_specific = company_specific + HR_NEEDS
+    return {"company_name": company_name, "department": department, "items": company_specific, "manual_input_label": "➕ Digər ehtiyac (Əllə daxil et)"}
+
+
+@app.get("/analytics/company-expenses")
+def company_expenses(company_name: str):
+    return get_expense_mock(company_name)
+
+
+@app.get("/vendors-marketplace")
+def vendors_marketplace(db: Session = Depends(get_db)):
+    vendors = db.query(Vendor).order_by(Vendor.company_name.asc()).all()
+    return [
+        {
+            "vendor_id": v.id,
+            "vendor_name": v.company_name,
+            "success_rate": round((v.reliability_score + v.quality_score + v.delivery_score + v.commercial_score) / 4, 2),
+            "about": v.about,
+        }
+        for v in vendors
+    ]
+
+
+@app.get("/vendors/{vendor_id}/profile")
+def vendor_profile(vendor_id: int, db: Session = Depends(get_db)):
+    vendor = db.query(Vendor).filter(Vendor.id == vendor_id).first()
+    if not vendor:
+        raise HTTPException(status_code=404, detail="Vendor not found")
+    return {
+        "vendor_id": vendor.id,
+        "vendor_name": vendor.company_name,
+        "about": vendor.about,
+        "feedback": [
+            {"buyer": "Bakı Metropoliteni QSC", "comment": "Vaxtında çatdırılma və yüksək keyfiyyət.", "rating": 5},
+            {"buyer": "Azərbaycan Dəmir Yolları (ADY)", "comment": "Qiymət/performans balansı yaxşıdır.", "rating": 4},
+        ],
+        "previous_sales": [
+            {"company": "AZAL", "what_sold": "Terminal logistika skanerləri"},
+            {"company": "Bakı Limanı", "what_sold": "Forklift ehtiyat hissələri"},
+        ],
+    }

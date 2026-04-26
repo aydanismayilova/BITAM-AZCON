@@ -14,6 +14,7 @@ class UserCreate(BaseModel):
     password: str = Field(min_length=4)
     role: Role
     company_id: int | None = None
+    department: str | None = None
 
 
 class LoginRequest(BaseModel):
@@ -27,6 +28,7 @@ class RegistrationRequestCreate(BaseModel):
     email: EmailStr
     password: str = Field(min_length=4)
     company_name: str
+    department: str
     requested_role: Role
 
 
@@ -36,6 +38,7 @@ class UserOut(BaseModel):
     email: EmailStr
     role: Role
     company_id: int | None
+    department: str | None
 
     class Config:
         from_attributes = True
@@ -64,6 +67,11 @@ class PurchaseRequestCreate(BaseModel):
     budget_min: float | None = None
     budget_max: float | None = None
     required_by: str
+    department: str | None = None
+    item_type: str = "product"
+    vendor_id: int | None = None
+    delivery_date: str | None = None
+    shipping_cost: float = 1000.0
 
 
 class PurchaseRequestOut(BaseModel):
@@ -76,6 +84,11 @@ class PurchaseRequestOut(BaseModel):
     budget_min: float | None
     budget_max: float | None
     required_by: str
+    department: str | None
+    item_type: str
+    vendor_id: int | None
+    delivery_date: str | None
+    shipping_cost: float
     status: RequestStatus
 
     class Config:
