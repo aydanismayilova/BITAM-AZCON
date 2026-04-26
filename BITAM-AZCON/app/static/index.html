@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AZCON Procurement</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-logo">A</div>
+          <div>
+            <h1>AZCON</h1>
+            <p>Smart Procurement</p>
+          </div>
+        </div>
+
+        <div class="sidebar-meta">
+          <div class="field"><label>İstifadəçi</label><div id="userName" class="profile-text">-</div></div>
+          <div class="field"><label>Rol</label><div id="userRole" class="profile-text">-</div></div>
+          <div class="field"><label>Şirkət</label><div id="userCompany" class="profile-text">-</div></div>
+          <div class="field"><label>Departament</label><div id="userDepartment" class="profile-text">-</div></div>
+        </div>
+        <button id="btnLogout" class="btn">Logout</button>
+      </aside>
+
+      <main class="content">
+        <header class="topbar">
+          <div>
+            <h2 id="topbarTitle">AZCON Vendor Hub</h2>
+            <p id="topbarSubtitle">Şirkətlər, uğur faizi, sifariş və AI tövsiyə axını.</p>
+          </div>
+        </header>
+        <div id="sectionTabs" class="header-tabs"></div>
+
+        <section id="sec-storage-requests" class="section-group role-view" data-roles="procurement_decider">
+          <div class="section-head"><h3>1) Storage Holder Requests</h3></div>
+          <div class="actions">
+            <button id="btnLoadStorageRequests" class="btn">Load Requests</button>
+          </div>
+          <div id="storageRequestsOut" class="output output-xl"></div>
+        </section>
+
+         <section id="sec-request-form" class="section-group role-view" data-roles="storage_holder,procurement_decider,company_admin,department_admin">
+          <div class="section-head"><h3>2) Request Form</h3></div>
+          <div class="form-row">
+            <div class="field"><label>Məhsul / Xidmət adı</label><input id="reqTitle" placeholder="Məs: Eskalator ehtiyat hissələri və ya Tibbi müayinə" /></div>
+            <div class="field"><label>Tip</label><select id="reqItemType"><option value="product">Product</option><option value="service">Service</option></select></div>
+            <div class="field"><label>Say</label><input id="reqQty" type="number" value="1" /></div>
+            <div class="field"><label>Vendor</label><select id="reqVendorId"></select></div>
+            <div class="field"><label>Çatdırılma tarixi</label><input id="reqDeliveryDate" value="2026-05-10" /></div>
+          </div>
+          <div class="field">
+            <label>Spesifikasiya</label>
+            <textarea id="reqDescription" rows="3" placeholder="Ətraflı tələbi yazın"></textarea>
+          </div>
+          <button id="btnManualNeed" class="btn">➕ Digər ehtiyac (Əllə daxil et)</button>
+          <button id="btnCreateRequest" class="btn btn-primary">Sifarişi Yarat</button>
+          <div id="reqOut" class="output"></div>
+        </section>
+
+        <section id="sec-ai-recommendation" class="section-group role-view" data-roles="procurement_decider,company_admin">
+          <div class="section-head"><h3>3) AI Recommendation</h3></div>
+          <div class="actions">
+            <select id="recommendReqId"></select>
+            <select id="topN"><option value="3">Top 3</option><option value="5">Top 5</option><option value="10">Top 10</option></select>
+            <button id="btnRecommend" class="btn btn-primary">AI Tövsiyə Ver</button>
+          </div>
+          <div id="recommendOut" class="output"></div>
+        </section>
+
+        <section id="sec-company-approvals" class="section-group role-view" data-roles="company_admin">
+          <div class="section-head"><h3>4) Company Admin: Department Admin Approvals</h3></div>
+          <div class="actions">
+            <button id="btnLoadCompanyApprovals" class="btn">Load Pending Requests</button>
+          </div>
+          <div id="companyApprovalsOut" class="output output-xl"></div>
+        </section>
+
+        <section id="sec-department-approvals" class="section-group role-view" data-roles="department_admin">
+          <div class="section-head"><h3>4) Department Admin: User Approvals</h3></div>
+          <div class="actions">
+            <button id="btnLoadDepartmentApprovals" class="btn">Load Pending Requests</button>
+          </div>
+          <div id="departmentApprovalsOut" class="output output-xl"></div>
+        </section>
+
+        <section id="sec-platform-approvals" class="section-group role-view" data-roles="platform_admin">
+          <div class="section-head"><h3>1) Platform Registration Approvals</h3></div>
+          <div class="actions">
+            <button id="btnLoadPlatformApprovals" class="btn">Load Pending Requests</button>
+          </div>
+          <div id="platformApprovalsOut" class="output output-xl"></div>
+        </section>
+
+        <section id="sec-platform-users" class="section-group role-view" data-roles="platform_admin">
+          <div class="section-head"><h3>2) Platform User Management</h3></div>
+          <div class="actions">
+            <button id="btnLoadAdminUsers" class="btn">Load All Accounts</button>
+          </div>
+          <div id="adminUsersOut" class="output output-xl"></div>
+        </section>
+
+        <section id="sec-storage-inventory" class="section-group role-view" data-roles="storage_holder">
+          <div class="section-head"><h3>1) Storage Inventory Overview</h3></div>
+          <div class="actions">
+            <button id="btnLoadStorageInventory" class="btn">Load Current Inventory</button>
+          </div>
+          <div id="storageInventoryOut" class="output output-xl"></div>
+        </section>
+
+        <section id="sec-approved-vendors" class="section-group role-view" data-roles="company_admin">
+          <div class="section-head"><h3>5) Approved Vendor List</h3></div>
+          <div class="form-row">
+            <div class="field"><label>Vendor Name</label><input id="vendorName" placeholder="Vendor company name" /></div>
+            <div class="field"><label>Categories (items/services)</label><input id="vendorCategories" placeholder="IT Hardware, Logistics, Telecom Service" /></div>
+            <div class="field"><label>Trusted</label><select id="vendorTrusted"><option value="true">Yes</option><option value="false">No</option></select></div>
+          </div>
+          <button id="btnAddVendor" class="btn btn-primary">Add Approved Vendor</button>
+          <div id="vendorAddOut" class="output"></div>
+          <div id="companyVendorsOut" class="output output-xl"></div>
+        </section>
+      </main>
+    </div>
+
+    <script src="app.js?v=11"></script>
+  </body>
+</html>
