@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AZCON Login</title>
+    <script>
+      if (window.location.protocol === "file:") {
+        window.location.replace("http://127.0.0.1:8000/");
+      }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/static/styles.css" />
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+      :root {
+        --bg: #f0ede8;
+        --card: #ffffff;
+        --border: #d8d4ce;
+        --text: #1a1816;
+        --text-muted: #7a756e;
+        --accent: #1a3a2a;
+        --accent-hover: #0f2318;
+        --accent-light: #e8f0eb;
+        --danger: #c0392b;
+        --radius: 10px;
+        --shadow: 0 4px 24px rgba(0,0,0,0.08);
+        --transition: 0.25s ease;
+      }
+
+      body {
+        font-family: 'DM Sans', sans-serif;
+        background: var(--bg);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+      }
+
+      /* Subtle grid texture */
+      body::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        background-image:
+          linear-gradient(var(--border) 1px, transparent 1px),
+          linear-gradient(90deg, var(--border) 1px, transparent 1px);
+        background-size: 40px 40px;
+        opacity: 0.35;
+        pointer-events: none;
+      }
+
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        width: 100%;
+        max-width: 420px;
+        padding: 40px 36px;
+        position: relative;
+        z-index: 1;
+      }
+
+      /* ── Header ── */
+      .card-header {
+        margin-bottom: 32px;
+      }
+
+      .brand {
+        font-family: 'DM Mono', monospace;
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        margin-bottom: 6px;
+      }
+
+      .card-title {
+        font-size: 22px;
+        font-weight: 600;
+        color: var(--text);
+        letter-spacing: -0.3px;
+      }
+
+      .card-subtitle {
+        font-size: 13px;
+        color: var(--text-muted);
+        margin-top: 4px;
+      }
+
+      /* ── Form elements ── */
+      .form-group {
+        margin-bottom: 16px;
+      }
+
+      label {
+        display: block;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--text-muted);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        margin-bottom: 6px;
+      }
+
+      input, select {
+        width: 100%;
+        padding: 10px 13px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        font-family: 'DM Sans', sans-serif;
+        font-size: 14px;
+        color: var(--text);
+        background: #faf9f7;
+        transition: border-color var(--transition), box-shadow var(--transition);
+        outline: none;
+        -webkit-appearance: none;
+      }
+
+      input:focus, select:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(26,58,42,0.08);
+        background: #fff;
+      }
+
+      /* ── Buttons ── */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        width: 100%;
+        padding: 11px 18px;
+        border: none;
+        border-radius: 6px;
+        font-family: 'DM Sans', sans-serif;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background var(--transition), transform 0.1s;
+      }
+
+      .btn:active { transform: scale(0.98); }
+
+      .btn-primary {
+        background: var(--accent);
+        color: #fff;
+      }
+      .btn-primary:hover { background: var(--accent-hover); }
+
+      .btn-outline {
+        background: transparent;
+        color: var(--accent);
+        border: 1px solid var(--border);
+      }
+      .btn-outline:hover { background: var(--accent-light); border-color: var(--accent); }
+
+      /* ── Divider ── */
+      .divider {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin: 20px 0;
+        color: var(--text-muted);
+        font-size: 12px;
+      }
+      .divider::before, .divider::after {
+        content: '';
+        flex: 1;
+        height: 1px;
+        background: var(--border);
+      }
+
+      /* ── Message output ── */
+      .output {
+        font-size: 13px;
+        margin-top: 10px;
+        min-height: 18px;
+        color: var(--danger);
+      }
+      .output.success { color: #1a7a40; }
+
+      /* ── Panel toggle ── */
+      #loginPanel, #registerPanel {
+        transition: opacity 0.2s ease;
+      }
+
+      #registerPanel {
+        display: none;
+        opacity: 0;
+      }
+
+      #registerPanel.visible {
+        display: block;
+        animation: fadeIn 0.25s ease forwards;
+      }
+
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(6px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+
+      /* ── Back link ── */
+      .back-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 12px;
+        color: var(--text-muted);
+        cursor: pointer;
+        border: none;
+        background: none;
+        padding: 0;
+        font-family: inherit;
+        margin-bottom: 24px;
+        transition: color var(--transition);
+      }
+      .back-link:hover { color: var(--accent); }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+
+      <!-- ═══════════════ SIGN IN PANEL ═══════════════ -->
+      <div id="loginPanel">
+        <div class="card-header">
+          <div class="brand">AZCON Procurement</div>
+          <div class="card-title">Welcome back</div>
+          <div class="card-subtitle">Sign in to your account</div>
+        </div>
+
+        <div class="form-group">
+          <label for="username">Username</label>
+          <input id="username" value="faigtayibov" autocomplete="username" />
+        </div>
+
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input id="password" type="password" value="1234" autocomplete="current-password" />
+        </div>
+
+        <button id="btnLogin" class="btn btn-primary">Sign In</button>
+        <div id="loginMsg" class="output"></div>
+
+        <div class="divider">or</div>
+
+        <button id="showRegister" class="btn btn-outline">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+            <line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
+          </svg>
+          Create an Account
+        </button>
+      </div>
+
+      <!-- ═══════════════ REGISTER PANEL ═══════════════ -->
+      <div id="registerPanel">
+        <button class="back-link" id="showLogin">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+          Back to Sign In
+        </button>
+
+        <div class="card-header">
+          <div class="brand">AZCON Procurement</div>
+          <div class="card-title">Request Access</div>
+          <div class="card-subtitle">Fill in your details to create an account</div>
+        </div>
+
+        <div class="form-group">
+          <label for="regFullName">Full Name</label>
+          <input id="regFullName" placeholder="John Doe" />
+        </div>
+
+        <div class="form-group">
+          <label for="regUsername">Username</label>
+          <input id="regUsername" placeholder="johndoe" autocomplete="off" />
+        </div>
+
+        <div class="form-group">
+          <label for="regEmail">Email</label>
+          <input id="regEmail" type="email" placeholder="john@company.com" />
+        </div>
+
+        <div class="form-group">
+          <label for="regPassword">Password</label>
+          <input id="regPassword" type="password" placeholder="••••••••" autocomplete="new-password" />
+        </div>
+
+        <div class="form-group">
+          <label for="regCompany">Company</label>
+          <select id="regCompany">
+            <option value="" disabled selected>Select a company</option>
+            <option value="azal">Azerbaijan Airlines (AZAL)</option>
+            <option value="az_railways">Azerbaijan Railways</option>
+            <option value="az_caspian">Azerbaijan Caspian Shipping Company</option>
+            <option value="baku_metro">Baku Metro</option>
+            <option value="baku_bus">Baku Bus</option>
+            <option value="baku_shipyard">Baku Shipyard</option>
+            <option value="azercosmos">Azercosmos</option>
+            <option value="aztelekom">Aztelekom</option>
+            <option value="azintelecom">AzInTelecom</option>
+            <option value="azerpost">Azerpost</option>
+            <option value="baku_taxi">Baku Taxi Service</option>
+            <option value="teleradio">"Teleradio" LLC</option>
+            <option value="naic">National Artificial Intelligence Center</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="regRole">Role</label>
+          <select id="regRole">
+            <option value="storage_holder">Storage Holder</option>
+            <option value="procurement_decider">Procurement Decider</option>
+            <option value="company_admin">Company Admin</option>
+          </select>
+        </div>
+
+        <button id="btnRegister" class="btn btn-primary">Send Registration Request</button>
+        <div id="regMsg" class="output"></div>
+      </div>
+
+    </div>
+
+    <script>
+      const loginPanel    = document.getElementById('loginPanel');
+      const registerPanel = document.getElementById('registerPanel');
+
+      document.getElementById('showRegister').addEventListener('click', () => {
+        loginPanel.style.display = 'none';
+        registerPanel.classList.add('visible');
+      });
+
+      document.getElementById('showLogin').addEventListener('click', () => {
+        registerPanel.classList.remove('visible');
+        registerPanel.style.display = '';   // reset so CSS display:none retakes effect
+        loginPanel.style.display = 'block';
+        // give display:none a tick to re-apply after removing .visible
+        requestAnimationFrame(() => { registerPanel.style.display = ''; });
+      });
+    </script>
+
+    <script src="/static/login.js?v=4"></script>
+  </body>
+</html>
