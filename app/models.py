@@ -105,6 +105,9 @@ class PurchaseRequest(Base):
     delivery_date: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
     shipping_cost: Mapped[float] = mapped_column(Float, default=1000.0)
     shipment_batch_id: Mapped[int | None] = mapped_column(ForeignKey("shipment_batches.id"), nullable=True, index=True)
+    sourcing_feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sourcing_vendor_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    sourcing_vendor_website: Mapped[str | None] = mapped_column(String(255), nullable=True)
     status: Mapped[RequestStatus] = mapped_column(Enum(RequestStatus), default=RequestStatus.SUBMITTED)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
@@ -116,7 +119,9 @@ class Vendor(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id"), nullable=True, index=True)
+    department: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
     company_name: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    website_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     provided_categories: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_trusted: Mapped[bool] = mapped_column(Boolean, default=False)
     reliability_score: Mapped[float] = mapped_column(Float, default=50.0)

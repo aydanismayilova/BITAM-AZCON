@@ -116,6 +116,9 @@ def run_light_migrations():
             ("ALTER TABLE purchase_requests ADD COLUMN delivery_date VARCHAR(40)", "delivery_date"),
             ("ALTER TABLE purchase_requests ADD COLUMN shipping_cost FLOAT DEFAULT 1000", "shipping_cost"),
             ("ALTER TABLE purchase_requests ADD COLUMN shipment_batch_id INTEGER", "shipment_batch_id"),
+            ("ALTER TABLE purchase_requests ADD COLUMN sourcing_feedback TEXT", "sourcing_feedback"),
+            ("ALTER TABLE purchase_requests ADD COLUMN sourcing_vendor_name VARCHAR(120)", "sourcing_vendor_name"),
+            ("ALTER TABLE purchase_requests ADD COLUMN sourcing_vendor_website VARCHAR(255)", "sourcing_vendor_website"),
         ]:
             if col_name not in req_cols:
                 conn.execute(text(statement))
@@ -123,6 +126,8 @@ def run_light_migrations():
         vendor_cols = [row[1] for row in conn.execute(text("PRAGMA table_info(vendors)")).fetchall()]
         for statement, col_name in [
             ("ALTER TABLE vendors ADD COLUMN company_id INTEGER", "company_id"),
+            ("ALTER TABLE vendors ADD COLUMN department VARCHAR(120)", "department"),
+            ("ALTER TABLE vendors ADD COLUMN website_url VARCHAR(255)", "website_url"),
             ("ALTER TABLE vendors ADD COLUMN provided_categories VARCHAR(255)", "provided_categories"),
             ("ALTER TABLE vendors ADD COLUMN is_trusted BOOLEAN DEFAULT 0", "is_trusted"),
             ("ALTER TABLE vendors ADD COLUMN reliability_score FLOAT DEFAULT 50", "reliability_score"),
@@ -980,6 +985,8 @@ def create_purchase_request(
     if current_user.role != Role.PLATFORM_ADMIN and current_user.company_id is None:
         raise HTTPException(status_code=400, detail="User has no company context")
     company_id = current_user.company_id if current_user.role != Role.PLATFORM_ADMIN else 1
+    # Procurement deciders can create direct requests without an extra approval step.
+    initial_status = RequestStatus.APPROVED if current_user.role == Role.PROCUREMENT_DECIDER else RequestStatus.SUBMITTED
     req = PurchaseRequest(
         company_id=company_id,
         requested_by=current_user.id,
@@ -989,7 +996,7 @@ def create_purchase_request(
         budget_min=payload.budget_min,
         budget_max=payload.budget_max,
         required_by=payload.required_by,
-        status=RequestStatus.SUBMITTED,
+        status=initial_status,
         department=payload.department or current_user.department,
         item_type=payload.item_type,
         vendor_id=payload.vendor_id,
@@ -1048,7 +1055,7 @@ def list_storage_holder_requests_for_procurement(
             PurchaseRequest.company_id == current_user.company_id,
             PurchaseRequest.department == current_user.department,
             User.role == Role.STORAGE_HOLDER,
-            PurchaseRequest.status.in_([RequestStatus.SUBMITTED, RequestStatus.APPROVED]),
+            PurchaseRequest.status == RequestStatus.SUBMITTED,
         )
         .order_by(PurchaseRequest.id.desc())
         .all()
@@ -1066,6 +1073,46 @@ def list_storage_holder_requests_for_procurement(
     ]
 
 
+@app.get("/procurement/request-form-needs")
+def list_request_form_needs_for_procurement(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(Role.PROCUREMENT_DECIDER)),
+):
+    rows = (
+        db.query(PurchaseRequest, User, Company, Vendor)
+        .join(User, PurchaseRequest.requested_by == User.id)
+        .join(Company, PurchaseRequest.company_id == Company.id)
+        .outerjoin(Vendor, PurchaseRequest.vendor_id == Vendor.id)
+        .filter(
+            PurchaseRequest.company_id == current_user.company_id,
+            PurchaseRequest.department == current_user.department,
+            User.role.in_([Role.STORAGE_HOLDER, Role.PROCUREMENT_DECIDER]),
+            PurchaseRequest.status == RequestStatus.APPROVED,
+        )
+        .order_by(PurchaseRequest.id.desc())
+        .all()
+    )
+    return [
+        {
+            "request_id": req.id,
+            "title": req.title,
+            "description": req.description,
+            "quantity": req.quantity,
+            "status": req.status.value,
+            "requested_by": requester.full_name,
+            "department": req.department,
+            "company_name": company.name,
+            "vendor_id": req.vendor_id,
+            "vendor_name": vendor.company_name if vendor else None,
+            "vendor_website": vendor.website_url if vendor else None,
+            "sourcing_feedback": req.sourcing_feedback,
+            "sourcing_vendor_name": req.sourcing_vendor_name,
+            "sourcing_vendor_website": req.sourcing_vendor_website,
+        }
+        for req, requester, company, vendor in rows
+    ]
+
+
 def _request_tokens(req: PurchaseRequest) -> list[str]:
     text = f"{(req.title or '').lower()} {(req.description or '').lower()} {(req.department or '').lower()}"
     return [token for token in text.replace("/", " ").replace(",", " ").split() if token]
@@ -1079,40 +1126,49 @@ def _vendor_matches_request(vendor: Vendor, req: PurchaseRequest) -> bool:
 
 
 def _find_vendor_for_accepted_request(db: Session, req: PurchaseRequest):
-    same_company_vendors = db.query(Vendor).filter(Vendor.company_id == req.company_id, Vendor.is_trusted.is_(True)).all()
+    same_company_vendors = (
+        db.query(Vendor)
+        .filter(
+            Vendor.company_id == req.company_id,
+            Vendor.department == req.department,
+            Vendor.is_trusted.is_(True),
+        )
+        .all()
+    )
     for vendor in same_company_vendors:
         if _vendor_matches_request(vendor, req):
             return {
-                "strategy": "company_approved_vendor",
+                "strategy": "company_department_approved_vendor",
                 "vendor_id": vendor.id,
                 "vendor_name": vendor.company_name,
+                "vendor_website": vendor.website_url,
                 "provided_categories": vendor.provided_categories,
-                "message": "Matched from your company's approved vendor list.",
+                "message": "Matched from your company's approved vendor list in the same department.",
             }
 
-    cross_company_vendors = db.query(Vendor).filter(Vendor.company_id != req.company_id).all()
+    cross_company_vendors = (
+        db.query(Vendor)
+        .filter(
+            Vendor.company_id != req.company_id,
+            Vendor.department == req.department,
+            Vendor.is_trusted.is_(True),
+        )
+        .all()
+    )
     for vendor in cross_company_vendors:
         if _vendor_matches_request(vendor, req):
             return {
-                "strategy": "cross_company_vendor",
+                "strategy": "cross_company_same_department_vendor",
                 "vendor_id": vendor.id,
                 "vendor_name": vendor.company_name,
+                "vendor_website": vendor.website_url,
                 "provided_categories": vendor.provided_categories,
-                "message": "No internal match; matched from other companies' vendors.",
+                "message": "No same-company vendor found in this department; matched from other companies with the same department.",
             }
 
-    ai_fallback = run_recommendation_pipeline(db, req, top_n=3)
-    if ai_fallback.get("results"):
-        return {
-            "strategy": "ai_recommendation_fallback",
-            "message": "No approved vendor match found. AI recommendation fallback used.",
-            "ai_results": ai_fallback["results"],
-        }
-
     return {
-        "strategy": "internet_search_required",
-        "message": "No vendor found on platform. AI internet search should be triggered.",
-        "ai_results": [],
+        "strategy": "no_approved_vendor_found",
+        "message": "Sorry, there is no approved vendor on the platform for this product or service.",
     }
 
 
@@ -1131,12 +1187,33 @@ def accept_storage_request(
     if req.status != RequestStatus.SUBMITTED:
         raise HTTPException(status_code=400, detail="Only submitted requests can be accepted")
 
-    sourcing = _find_vendor_for_accepted_request(db, req)
-    if sourcing.get("vendor_id"):
-        req.vendor_id = sourcing["vendor_id"]
     req.status = RequestStatus.APPROVED
     db.commit()
-    return {"message": "Request accepted", "sourcing": sourcing}
+    return {"message": "Request accepted and moved to Request Form needs list."}
+
+
+@app.post("/procurement/requests/{request_id}/search-vendor")
+def search_vendor_for_request(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(Role.PROCUREMENT_DECIDER)),
+):
+    req = db.query(PurchaseRequest).filter(PurchaseRequest.id == request_id).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found")
+    require_same_company_or_admin(req.company_id, current_user)
+    if req.department != current_user.department:
+        raise HTTPException(status_code=403, detail="You can search vendors only for requests from your department")
+    if req.status != RequestStatus.APPROVED:
+        raise HTTPException(status_code=400, detail="Only accepted requests can be searched for vendors")
+
+    sourcing = _find_vendor_for_accepted_request(db, req)
+    req.sourcing_feedback = sourcing.get("message")
+    req.sourcing_vendor_name = sourcing.get("vendor_name")
+    req.sourcing_vendor_website = sourcing.get("vendor_website")
+    db.commit()
+
+    return {"message": "Vendor search completed", "sourcing": sourcing}
 
 
 @app.post("/procurement/requests/{request_id}/decline")
@@ -1179,10 +1256,11 @@ def mark_storage_request_done(
 def create_vendor(
     payload: VendorCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(Role.COMPANY_ADMIN, Role.PLATFORM_ADMIN)),
+    current_user: User = Depends(require_roles(Role.DEPARTMENT_ADMIN)),
 ):
     data = payload.model_dump()
-    data["company_id"] = current_user.company_id if current_user.role == Role.COMPANY_ADMIN else data.get("company_id")
+    data["company_id"] = current_user.company_id
+    data["department"] = current_user.department
     vendor = Vendor(**data)
     db.add(vendor)
     db.commit()
@@ -1193,16 +1271,15 @@ def create_vendor(
 @app.get("/company/vendors")
 def list_company_vendors(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(Role.COMPANY_ADMIN, Role.PLATFORM_ADMIN)),
+    current_user: User = Depends(require_roles(Role.DEPARTMENT_ADMIN)),
 ):
-    query = db.query(Vendor)
-    if current_user.role == Role.COMPANY_ADMIN:
-        query = query.filter(Vendor.company_id == current_user.company_id)
+    query = db.query(Vendor).filter(Vendor.company_id == current_user.company_id)
     rows = query.order_by(Vendor.company_name.asc()).all()
     return [
         {
             "vendor_id": v.id,
             "vendor_name": v.company_name,
+            "vendor_website": v.website_url,
             "is_trusted": v.is_trusted,
             "provided_categories": v.provided_categories,
         }

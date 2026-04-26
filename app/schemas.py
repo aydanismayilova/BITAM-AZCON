@@ -97,6 +97,7 @@ class PurchaseRequestOut(BaseModel):
 
 class VendorCreate(BaseModel):
     company_name: str
+    website_url: str | None = None
     provided_categories: str | None = None
     is_trusted: bool = False
     reliability_score: float = 50.0

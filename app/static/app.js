@@ -17,6 +17,14 @@ function esc(x) {
   return String(x ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }
 
+let procurementNeedsFeedback = "";
+
+function setProcurementNeedsFeedback(message, isSuccess = false) {
+  procurementNeedsFeedback = message
+    ? `<div class="badge ${isSuccess ? "ok" : ""}" style="display:inline-block;margin-bottom:10px;">${esc(message)}</div>`
+    : "";
+}
+
 
 function applyRoleView() {
   document.querySelectorAll(".role-view").forEach((el) => {
@@ -293,16 +301,27 @@ async function loadAdminUsers() {
 }
 
 window.acceptStorageRequest = async function (requestId) {
-  await api(`/procurement/requests/${requestId}/accept`, "POST");
+  const out = await api(`/procurement/requests/${requestId}/accept`, "POST");
+  setProcurementNeedsFeedback(out.message || "Request accepted.", true);
   await loadStorageRequests();
+  await loadRequestFormNeeds();
 };
 window.declineStorageRequest = async function (requestId) {
   await api(`/procurement/requests/${requestId}/decline`, "POST");
+  setProcurementNeedsFeedback("Request declined.", true);
   await loadStorageRequests();
+  await loadRequestFormNeeds();
 };
 window.doneStorageRequest = async function (requestId) {
   await api(`/procurement/requests/${requestId}/done`, "POST");
-  await loadStorageRequests();
+  setProcurementNeedsFeedback("Request marked as done.", true);
+  await loadRequestFormNeeds();
+};
+window.searchVendorForRequest = async function (requestId) {
+  const out = await api(`/procurement/requests/${requestId}/search-vendor`, "POST");
+  const message = out?.sourcing?.message || "Vendor search completed.";
+  setProcurementNeedsFeedback(message, Boolean(out?.sourcing?.vendor_id));
+  await loadRequestFormNeeds();
 };
 
 async function loadStorageRequests() {
@@ -328,6 +347,28 @@ async function loadStorageRequests() {
     .join("")}</tbody></table>`;
 }
 
+async function loadRequestFormNeeds() {
+  const outEl = document.getElementById("requestFormNeedsOut");
+  if (!outEl) return;
+  const rows = await api("/procurement/request-form-needs");
+  if (!rows.length) {
+    outEl.innerHTML = `${procurementNeedsFeedback}No accepted requests in Request Form needs list.`;
+    return;
+  }
+  outEl.innerHTML = `${procurementNeedsFeedback}<table class="table"><thead><tr><th>Need</th><th>Requester</th><th>Search Feedback</th><th>Status</th><th>Actions</th></tr></thead><tbody>${rows
+    .map((r) => {
+      const feedbackVendor = r.sourcing_vendor_name ? `Vendor: ${esc(r.sourcing_vendor_name)}` : "";
+      const feedbackWebsite = r.sourcing_vendor_website
+        ? `<a href="${esc(r.sourcing_vendor_website)}" target="_blank" rel="noopener noreferrer">Open site</a>`
+        : "";
+      const feedbackMessage = r.sourcing_feedback ? esc(r.sourcing_feedback) : "No search performed yet.";
+      const feedback = `${feedbackMessage}${feedbackVendor ? `<br>${feedbackVendor}` : ""}${feedbackWebsite ? `<br>${feedbackWebsite}` : ""}`;
+      const actions = `<button class="btn btn-small" onclick="searchVendorForRequest(${r.request_id})">Search Vendor</button> <button class="btn btn-small" onclick="doneStorageRequest(${r.request_id})">Done</button> <button class="btn btn-small" onclick="declineStorageRequest(${r.request_id})">Decline</button>`;
+      return `<tr><td>${esc(r.title)}</td><td>${esc(r.requested_by)}</td><td>${feedback}</td><td>${esc(r.status)}</td><td>${actions}</td></tr>`;
+    })
+    .join("")}</tbody></table>`;
+}
+
 async function loadStorageInventory() {
   const outEl = document.getElementById("storageInventoryOut");
   if (!outEl) return;
@@ -349,8 +390,13 @@ async function loadCompanyVendors() {
     outEl.innerHTML = "No approved vendors yet.";
     return;
   }
-  outEl.innerHTML = `<table class="table"><thead><tr><th>Vendor</th><th>Trusted</th><th>Categories</th></tr></thead><tbody>${rows
-    .map((v) => `<tr><td>${esc(v.vendor_name)}</td><td>${v.is_trusted ? "Yes" : "No"}</td><td>${esc(v.provided_categories || "-")}</td></tr>`)
+  outEl.innerHTML = `<table class="table"><thead><tr><th>Vendor</th><th>Website</th><th>Trusted</th><th>Categories</th></tr></thead><tbody>${rows
+    .map((v) => {
+      const website = v.vendor_website
+        ? `<a href="${esc(v.vendor_website)}" target="_blank" rel="noopener noreferrer">Open site</a>`
+        : "-";
+      return `<tr><td>${esc(v.vendor_name)}</td><td>${website}</td><td>${v.is_trusted ? "Yes" : "No"}</td><td>${esc(v.provided_categories || "-")}</td></tr>`;
+    })
     .join("")}</tbody></table>`;
 }
 
@@ -358,6 +404,7 @@ async function createApprovedVendor() {
   const outEl = document.getElementById("vendorAddOut");
   const payload = {
     company_name: document.getElementById("vendorName").value.trim(),
+    website_url: document.getElementById("vendorWebsite").value.trim() || null,
     provided_categories: document.getElementById("vendorCategories").value.trim(),
     is_trusted: document.getElementById("vendorTrusted").value === "true",
   };
@@ -367,6 +414,7 @@ async function createApprovedVendor() {
   }
   await api("/vendors", "POST", payload);
   outEl.textContent = "Vendor saved to approved vendor list.";
+  document.getElementById("vendorWebsite").value = "";
   await loadCompanyVendors();
 }
 
@@ -398,6 +446,10 @@ const loadStorageRequestsBtn = document.getElementById("btnLoadStorageRequests")
 if (loadStorageRequestsBtn) {
   loadStorageRequestsBtn.onclick = loadStorageRequests;
 }
+const loadRequestFormNeedsBtn = document.getElementById("btnLoadRequestFormNeeds");
+if (loadRequestFormNeedsBtn) {
+  loadRequestFormNeedsBtn.onclick = loadRequestFormNeeds;
+}
 const loadDepartmentApprovalsBtn = document.getElementById("btnLoadDepartmentApprovals");
 if (loadDepartmentApprovalsBtn) {
   loadDepartmentApprovalsBtn.onclick = loadDepartmentApprovals;
@@ -411,7 +463,7 @@ if (loadAdminUsersBtn) {
   loadAdminUsersBtn.onclick = loadAdminUsers;
 }
 const addVendorBtn = document.getElementById("btnAddVendor");
-if (addVendorBtn) {
+if (addVendorBtn && user.role === "department_admin") {
   addVendorBtn.onclick = createApprovedVendor;
   loadCompanyVendors();
 }
@@ -428,6 +480,7 @@ if (user.role === "department_admin") {
 }
 if (user.role === "procurement_decider") {
   loadStorageRequests();
+  loadRequestFormNeeds();
 }
 if (user.role === "storage_holder") {
   loadStorageInventory();

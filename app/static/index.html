@@ -59,6 +59,12 @@
           <button id="btnManualNeed" class="btn">➕ Digər ehtiyac (Əllə daxil et)</button>
           <button id="btnCreateRequest" class="btn btn-primary">Sifarişi Yarat</button>
           <div id="reqOut" class="output"></div>
+          <div id="requestFormNeedsWrap" class="role-view hidden" data-roles="procurement_decider">
+            <div class="actions" style="margin-top: 12px;">
+              <button id="btnLoadRequestFormNeeds" class="btn">Load Needs List</button>
+            </div>
+            <div id="requestFormNeedsOut" class="output output-xl"></div>
+          </div>
         </section>
 
         <section id="sec-ai-recommendation" class="section-group role-view" data-roles="procurement_decider,company_admin">
@@ -111,10 +117,11 @@
           <div id="storageInventoryOut" class="output output-xl"></div>
         </section>
 
-        <section id="sec-approved-vendors" class="section-group role-view" data-roles="company_admin">
-          <div class="section-head"><h3>5) Approved Vendor List</h3></div>
+        <section id="sec-approved-vendors" class="section-group role-view" data-roles="department_admin">
+          <div class="section-head"><h3>5) Department Admin: Approved Vendor List</h3></div>
           <div class="form-row">
             <div class="field"><label>Vendor Name</label><input id="vendorName" placeholder="Vendor company name" /></div>
+            <div class="field"><label>Website</label><input id="vendorWebsite" placeholder="https://vendor.com" /></div>
             <div class="field"><label>Categories (items/services)</label><input id="vendorCategories" placeholder="IT Hardware, Logistics, Telecom Service" /></div>
             <div class="field"><label>Trusted</label><select id="vendorTrusted"><option value="true">Yes</option><option value="false">No</option></select></div>
           </div>
@@ -125,6 +132,6 @@
       </main>
     </div>
 
-    <script src="app.js?v=11"></script>
+    <script src="app.js?v=13"></script>
   </body>
 </html>
