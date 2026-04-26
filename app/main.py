@@ -177,6 +177,22 @@ static_dir = Path(__file__).resolve().parent / "static"
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 
+# Backward-compatible root asset routes (in case old HTML/cache requests /styles.css etc.)
+@app.get("/styles.css")
+def legacy_styles():
+    return FileResponse(static_dir / "styles.css")
+
+
+@app.get("/login.js")
+def legacy_login_js():
+    return FileResponse(static_dir / "login.js")
+
+
+@app.get("/app.js")
+def legacy_app_js():
+    return FileResponse(static_dir / "app.js")
+
+
 @app.get("/health")
 def health():
     return {"ok": True}
