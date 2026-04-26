@@ -29,19 +29,22 @@
       <main class="content">
         <header class="topbar">
           <div>
-            <h2>AZCON Vendor Hub</h2>
-            <p>Şirkətlər, uğur faizi, sifariş və AI tövsiyə axını.</p>
+            <h2 id="topbarTitle">AZCON Vendor Hub</h2>
+            <p id="topbarSubtitle">Şirkətlər, uğur faizi, sifariş və AI tövsiyə axını.</p>
           </div>
         </header>
+        <div id="sectionTabs" class="header-tabs"></div>
 
-        <section class="section-group">
-          <div class="section-head"><h3>1) Vendor Ana Səhifə</h3></div>
-          <div id="vendorsOut" class="output output-xl"></div>
-          <div id="vendorProfileOut" class="output output-xl"></div>
+        <section id="sec-storage-requests" class="section-group role-view" data-roles="procurement_decider">
+          <div class="section-head"><h3>1) Storage Holder Requests</h3></div>
+          <div class="actions">
+            <button id="btnLoadStorageRequests" class="btn">Load Requests</button>
+          </div>
+          <div id="storageRequestsOut" class="output output-xl"></div>
         </section>
 
-         <section class="section-group role-view" data-roles="procurement_decider,company_admin,platform_admin">
-          <div class="section-head"><h3>2) Sifariş Formu</h3></div>
+         <section id="sec-request-form" class="section-group role-view" data-roles="storage_holder,procurement_decider,company_admin,department_admin">
+          <div class="section-head"><h3>2) Request Form</h3></div>
           <div class="form-row">
             <div class="field"><label>Məhsul / Xidmət adı</label><input id="reqTitle" placeholder="Məs: Eskalator ehtiyat hissələri və ya Tibbi müayinə" /></div>
             <div class="field"><label>Tip</label><select id="reqItemType"><option value="product">Product</option><option value="service">Service</option></select></div>
@@ -58,7 +61,7 @@
           <div id="reqOut" class="output"></div>
         </section>
 
-        <section class="section-group role-view" data-roles="procurement_decider,company_admin,platform_admin">
+        <section id="sec-ai-recommendation" class="section-group role-view" data-roles="procurement_decider,company_admin">
           <div class="section-head"><h3>3) AI Recommendation</h3></div>
           <div class="actions">
             <select id="recommendReqId"></select>
@@ -68,14 +71,60 @@
           <div id="recommendOut" class="output"></div>
         </section>
 
-        <section class="section-group role-view" data-roles="company_admin,platform_admin">
-          <div class="section-head"><h3>4) Domain Leader Analytics</h3></div>
-          <div class="actions"><button id="btnLoadAnalytics" class="btn">Pie Chart Datasını Yüklə</button></div>
-          <div id="analyticsOut" class="output output-xl"></div>
+        <section id="sec-company-approvals" class="section-group role-view" data-roles="company_admin">
+          <div class="section-head"><h3>4) Company Admin: Department Admin Approvals</h3></div>
+          <div class="actions">
+            <button id="btnLoadCompanyApprovals" class="btn">Load Pending Requests</button>
+          </div>
+          <div id="companyApprovalsOut" class="output output-xl"></div>
+        </section>
+
+        <section id="sec-department-approvals" class="section-group role-view" data-roles="department_admin">
+          <div class="section-head"><h3>4) Department Admin: User Approvals</h3></div>
+          <div class="actions">
+            <button id="btnLoadDepartmentApprovals" class="btn">Load Pending Requests</button>
+          </div>
+          <div id="departmentApprovalsOut" class="output output-xl"></div>
+        </section>
+
+        <section id="sec-platform-approvals" class="section-group role-view" data-roles="platform_admin">
+          <div class="section-head"><h3>1) Platform Registration Approvals</h3></div>
+          <div class="actions">
+            <button id="btnLoadPlatformApprovals" class="btn">Load Pending Requests</button>
+          </div>
+          <div id="platformApprovalsOut" class="output output-xl"></div>
+        </section>
+
+        <section id="sec-platform-users" class="section-group role-view" data-roles="platform_admin">
+          <div class="section-head"><h3>2) Platform User Management</h3></div>
+          <div class="actions">
+            <button id="btnLoadAdminUsers" class="btn">Load All Accounts</button>
+          </div>
+          <div id="adminUsersOut" class="output output-xl"></div>
+        </section>
+
+        <section id="sec-storage-inventory" class="section-group role-view" data-roles="storage_holder">
+          <div class="section-head"><h3>1) Storage Inventory Overview</h3></div>
+          <div class="actions">
+            <button id="btnLoadStorageInventory" class="btn">Load Current Inventory</button>
+          </div>
+          <div id="storageInventoryOut" class="output output-xl"></div>
+        </section>
+
+        <section id="sec-approved-vendors" class="section-group role-view" data-roles="company_admin">
+          <div class="section-head"><h3>5) Approved Vendor List</h3></div>
+          <div class="form-row">
+            <div class="field"><label>Vendor Name</label><input id="vendorName" placeholder="Vendor company name" /></div>
+            <div class="field"><label>Categories (items/services)</label><input id="vendorCategories" placeholder="IT Hardware, Logistics, Telecom Service" /></div>
+            <div class="field"><label>Trusted</label><select id="vendorTrusted"><option value="true">Yes</option><option value="false">No</option></select></div>
+          </div>
+          <button id="btnAddVendor" class="btn btn-primary">Add Approved Vendor</button>
+          <div id="vendorAddOut" class="output"></div>
+          <div id="companyVendorsOut" class="output output-xl"></div>
         </section>
       </main>
     </div>
 
-    <script src="app.js?v=8"></script>
+    <script src="app.js?v=11"></script>
   </body>
 </html>

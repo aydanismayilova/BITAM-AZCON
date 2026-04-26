@@ -161,7 +161,6 @@
       }
       .btn-outline:hover { background: var(--accent-light); border-color: var(--accent); }
 
-      /* ── Divider ── */
       .divider {
         display: flex;
         align-items: center;
@@ -186,7 +185,6 @@
       }
       .output.success { color: #1a7a40; }
 
-      /* ── Panel toggle ── */
       #loginPanel, #registerPanel {
         transition: opacity 0.2s ease;
       }
@@ -206,7 +204,6 @@
         to   { opacity: 1; transform: translateY(0); }
       }
 
-      /* ── Back link ── */
       .back-link {
         display: inline-flex;
         align-items: center;
@@ -222,6 +219,7 @@
         transition: color var(--transition);
       }
       .back-link:hover { color: var(--accent); }
+
     </style>
   </head>
   <body>
@@ -249,100 +247,57 @@
         <div id="loginMsg" class="output"></div>
 
         <div class="divider">or</div>
-
-        <button id="showRegister" class="btn btn-outline">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
-            <line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
-          </svg>
-          Create an Account
-        </button>
+        <button id="showRegister" class="btn btn-outline">Register New Account</button>
       </div>
 
-      <!-- ═══════════════ REGISTER PANEL ═══════════════ -->
       <div id="registerPanel">
-        <button class="back-link" id="showLogin">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="15 18 9 12 15 6"/>
-          </svg>
-          Back to Sign In
-        </button>
+        <button class="back-link" id="showLogin">Back to Sign In</button>
 
         <div class="card-header">
           <div class="brand">AZCON Procurement</div>
           <div class="card-title">Request Access</div>
-          <div class="card-subtitle">Fill in your details to create an account</div>
+          <div class="card-subtitle">Company admin -> Department admin -> Storage/Procurement approval chain.</div>
         </div>
 
         <div class="form-group">
           <label for="regFullName">Full Name</label>
           <input id="regFullName" placeholder="John Doe" />
         </div>
-
         <div class="form-group">
           <label for="regUsername">Username</label>
           <input id="regUsername" placeholder="johndoe" autocomplete="off" />
         </div>
-
         <div class="form-group">
           <label for="regEmail">Email</label>
           <input id="regEmail" type="email" placeholder="john@company.com" />
         </div>
-
         <div class="form-group">
           <label for="regPassword">Password</label>
           <input id="regPassword" type="password" placeholder="••••••••" autocomplete="new-password" />
         </div>
-
         <div class="form-group">
           <label for="regCompany">Company</label>
-          <select id="regCompany">
-            <option value="Bakı Metropoliteni QSC">Bakı Metropoliteni QSC</option>
-            <option value="AZAL">AZAL</option>
-            <option value="Aztelekom MMC">Aztelekom MMC</option>
-            <option value="Azərbaycan Dəmir Yolları (ADY)">Azərbaycan Dəmir Yolları (ADY)</option>
-            <option value="Bakı Limanı">Bakı Limanı</option>
-          </select>
+          <select id="regCompany"></select>
         </div>
-
-        <div class="form-group">
-          <label for="regDepartment">Departament</label>
-          <select id="regDepartment"></select>
-        </div>
-
         <div class="form-group">
           <label for="regRole">Role</label>
           <select id="regRole">
-            <option value="storage_holder">Storage Holder</option>
-            <option value="procurement_decider">Procurement Decider</option>
             <option value="company_admin">Company Admin</option>
+            <option value="department_admin">Department Admin</option>
+            <option value="procurement_decider">Procurement Decider</option>
+            <option value="storage_holder">Storage Holder</option>
           </select>
         </div>
-
+        <div class="form-group" id="regDepartmentWrap">
+          <label for="regDepartment">Department</label>
+          <select id="regDepartment"></select>
+        </div>
         <button id="btnRegister" class="btn btn-primary">Send Registration Request</button>
         <div id="regMsg" class="output"></div>
       </div>
 
     </div>
 
-    <script>
-      const loginPanel    = document.getElementById('loginPanel');
-      const registerPanel = document.getElementById('registerPanel');
-
-      document.getElementById('showRegister').addEventListener('click', () => {
-        loginPanel.style.display = 'none';
-        registerPanel.classList.add('visible');
-      });
-
-      document.getElementById('showLogin').addEventListener('click', () => {
-        registerPanel.classList.remove('visible');
-        registerPanel.style.display = '';   // reset so CSS display:none retakes effect
-        loginPanel.style.display = 'block';
-        // give display:none a tick to re-apply after removing .visible
-        requestAnimationFrame(() => { registerPanel.style.display = ''; });
-      });
-    </script>
-
-    <script src="login.js?v=5"></script>
+    <script src="login.js?v=6"></script>
   </body>
 </html>

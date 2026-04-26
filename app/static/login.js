@@ -30,19 +30,30 @@ async function loadCompanies() {
   departmentsByCompany = await departmentsRes.json();
   const select = document.getElementById("regCompany");
   select.innerHTML = companies.map((c) => `<option value="${c.name}">${c.name}</option>`).join("");
-  renderDepartments(select.value);
-  select.addEventListener("change", () => renderDepartments(select.value));
+  renderDepartments();
 }
 
-function renderDepartments(companyName) {
+function renderDepartments() {
+  const role = document.getElementById("regRole").value;
   const depSelect = document.getElementById("regDepartment");
-  const departments = departmentsByCompany[companyName] || ["Satınalma"];
+  const depWrap = document.getElementById("regDepartmentWrap");
+  if (role === "company_admin") {
+    depSelect.innerHTML = `<option value="Administration">Administration</option>`;
+    depSelect.value = "Administration";
+    depSelect.disabled = true;
+    depWrap.style.opacity = "0.7";
+    return;
+  }
+  const departments = ["IT", "Logistics", "TELECOM"];
+  depSelect.disabled = false;
+  depWrap.style.opacity = "1";
   depSelect.innerHTML = departments.map((d) => `<option value="${d}">${d}</option>`).join("");
 }
 
 async function registerRequest() {
   const msg = document.getElementById("regMsg");
   msg.textContent = "Submitting request...";
+  msg.classList.remove("success");
   try {
     const payload = {
       full_name: document.getElementById("regFullName").value.trim(),
@@ -63,11 +74,30 @@ async function registerRequest() {
       throw new Error(data.detail || "Registration failed");
     }
     msg.textContent = data.message;
+    msg.classList.add("success");
   } catch (err) {
     msg.textContent = `Registration failed: ${String(err.message || err)}`;
   }
 }
 
+const loginPanel = document.getElementById("loginPanel");
+const registerPanel = document.getElementById("registerPanel");
+
+document.getElementById("showRegister").addEventListener("click", () => {
+  loginPanel.style.display = "none";
+  registerPanel.classList.add("visible");
+});
+
+document.getElementById("showLogin").addEventListener("click", () => {
+  registerPanel.classList.remove("visible");
+  registerPanel.style.display = "";
+  loginPanel.style.display = "block";
+  requestAnimationFrame(() => {
+    registerPanel.style.display = "";
+  });
+});
+
 document.getElementById("btnLogin").addEventListener("click", login);
 document.getElementById("btnRegister").addEventListener("click", registerRequest);
+document.getElementById("regRole").addEventListener("change", renderDepartments);
 loadCompanies();

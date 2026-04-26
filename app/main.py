@@ -40,13 +40,23 @@ from app.schemas import (
 
 app = FastAPI(title="AZCON Procurement API", version="0.1.0")
 
-COMPANY_DEPARTMENTS = {
-    "Bakı Metropoliteni QSC": ["İnfrastruktur", "Enerji", "HR/İnzibati", "Satınalma"],
-    "AZAL": ["Yük Terminalı", "Uçuş Əməliyyatları", "HR/İnzibati", "Satınalma"],
-    "Aztelekom MMC": ["Şəbəkə Əməliyyatları", "Data Mərkəzi", "HR/İnzibati", "Satınalma"],
-    "Azərbaycan Dəmir Yolları (ADY)": ["İnfrastruktur", "Lokomotiv", "HR/İnzibati", "Satınalma"],
-    "Bakı Limanı": ["Liman Logistikası", "Yük Terminalı", "HR/İnzibati", "Satınalma"],
-}
+COMPANY_CATALOG = [
+    {"name": "Azerbaijan Airlines", "code": "AZAL"},
+    {"name": "Azerbaijan Railways", "code": "ADY"},
+    {"name": "Azerbaijan Caspian Shipping Company", "code": "ASCO"},
+    {"name": "Baku Metro", "code": "BAKU-METRO"},
+    {"name": "Baku Bus", "code": "BAKU-BUS"},
+    {"name": "Baku Shipyard", "code": "BAKU-SHIPYARD"},
+    {"name": "Azercosmos", "code": "AZERCOSMOS"},
+    {"name": "Aztelekom", "code": "AZTELEKOM"},
+    {"name": "AzInTelecom", "code": "AZINTELECOM"},
+    {"name": "Azerpost", "code": "AZERPOST"},
+    {"name": "Baku Taxi Service", "code": "BAKU-TAXI"},
+    {"name": "Teleradio LLC", "code": "TELERADIO"},
+    {"name": "National Artificial Intelligence Center", "code": "NAIC"},
+]
+
+COMPANY_DEPARTMENTS = {entry["name"]: ["IT", "Logistics", "TELECOM"] for entry in COMPANY_CATALOG}
 
 EXPENSIVE_NEEDS = {
     "Bakı Metropoliteni QSC": [
@@ -110,6 +120,22 @@ def run_light_migrations():
             if col_name not in req_cols:
                 conn.execute(text(statement))
 
+        vendor_cols = [row[1] for row in conn.execute(text("PRAGMA table_info(vendors)")).fetchall()]
+        for statement, col_name in [
+            ("ALTER TABLE vendors ADD COLUMN company_id INTEGER", "company_id"),
+            ("ALTER TABLE vendors ADD COLUMN provided_categories VARCHAR(255)", "provided_categories"),
+            ("ALTER TABLE vendors ADD COLUMN is_trusted BOOLEAN DEFAULT 0", "is_trusted"),
+            ("ALTER TABLE vendors ADD COLUMN reliability_score FLOAT DEFAULT 50", "reliability_score"),
+            ("ALTER TABLE vendors ADD COLUMN quality_score FLOAT DEFAULT 50", "quality_score"),
+            ("ALTER TABLE vendors ADD COLUMN delivery_score FLOAT DEFAULT 50", "delivery_score"),
+            ("ALTER TABLE vendors ADD COLUMN commercial_score FLOAT DEFAULT 50", "commercial_score"),
+            ("ALTER TABLE vendors ADD COLUMN about TEXT", "about"),
+            ("ALTER TABLE vendors ADD COLUMN avg_price_index FLOAT DEFAULT 50", "avg_price_index"),
+            ("ALTER TABLE vendors ADD COLUMN typical_delivery_days INTEGER DEFAULT 7", "typical_delivery_days"),
+        ]:
+            if col_name not in vendor_cols:
+                conn.execute(text(statement))
+
 
 run_light_migrations()
 Base.metadata.create_all(bind=engine)
@@ -165,6 +191,21 @@ def ensure_default_usernames():
 
 
 ensure_default_usernames()
+
+
+def ensure_company_catalog():
+    db = SessionLocal()
+    try:
+        for company_data in COMPANY_CATALOG:
+            exists = db.query(Company).filter(Company.name == company_data["name"]).first()
+            if not exists:
+                db.add(Company(name=company_data["name"], code=company_data["code"], success_rate=75.0))
+        db.commit()
+    finally:
+        db.close()
+
+
+ensure_company_catalog()
 
 def get_expense_mock(company_name: str):
     return {
@@ -236,7 +277,8 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
 
 @app.get("/companies-public")
 def list_companies_public(db: Session = Depends(get_db)):
-    return db.query(Company).order_by(Company.name.asc()).all()
+    names = [entry["name"] for entry in COMPANY_CATALOG]
+    return db.query(Company).filter(Company.name.in_(names)).order_by(Company.name.asc()).all()
 
 @app.get("/meta/company-departments")
 def company_departments():
@@ -248,6 +290,12 @@ def create_registration_request(payload: RegistrationRequestCreate, db: Session 
     company = db.query(Company).filter(Company.name == payload.company_name).first()
     if not company:
         raise HTTPException(status_code=404, detail="Selected company does not exist")
+
+    if payload.requested_role not in [Role.COMPANY_ADMIN, Role.DEPARTMENT_ADMIN, Role.STORAGE_HOLDER, Role.PROCUREMENT_DECIDER]:
+        raise HTTPException(
+            status_code=400,
+            detail="You can register only as company admin, department admin, storage holder, or procurement decider",
+        )
 
     if db.query(User).filter((User.username == payload.username) | (User.email == payload.email)).first():
         raise HTTPException(status_code=400, detail="Username or email already exists")
@@ -262,19 +310,94 @@ def create_registration_request(payload: RegistrationRequestCreate, db: Session 
     ):
         raise HTTPException(status_code=400, detail="A pending request already exists for this username or email")
 
+    existing_company_admin = (
+        db.query(User)
+        .filter(
+            User.company_id == company.id,
+            User.role == Role.COMPANY_ADMIN,
+            User.is_active.is_(True),
+        )
+        .first()
+    )
+
+    if payload.requested_role == Role.COMPANY_ADMIN:
+        if existing_company_admin:
+            raise HTTPException(status_code=400, detail="This company already has a company admin")
+        pending_admin = (
+            db.query(RegistrationRequest)
+            .filter(
+                RegistrationRequest.company_id == company.id,
+                RegistrationRequest.requested_role == Role.COMPANY_ADMIN,
+                RegistrationRequest.status == RegistrationStatus.PENDING,
+            )
+            .first()
+        )
+        if pending_admin:
+            raise HTTPException(status_code=400, detail="A company admin request for this company is already pending")
+        department = "Administration"
+        reviewer = "platform admin"
+    elif payload.requested_role == Role.DEPARTMENT_ADMIN:
+        if not existing_company_admin:
+            raise HTTPException(status_code=400, detail="This company has no approved company admin yet")
+        if payload.department not in ["IT", "Logistics", "TELECOM"]:
+            raise HTTPException(status_code=400, detail="Department must be IT, Logistics, or TELECOM")
+        existing_department_admin = (
+            db.query(User)
+            .filter(
+                User.company_id == company.id,
+                User.role == Role.DEPARTMENT_ADMIN,
+                User.department == payload.department,
+                User.is_active.is_(True),
+            )
+            .first()
+        )
+        if existing_department_admin:
+            raise HTTPException(status_code=400, detail="This department already has a department admin")
+        pending_department_admin = (
+            db.query(RegistrationRequest)
+            .filter(
+                RegistrationRequest.company_id == company.id,
+                RegistrationRequest.requested_role == Role.DEPARTMENT_ADMIN,
+                RegistrationRequest.department == payload.department,
+                RegistrationRequest.status == RegistrationStatus.PENDING,
+            )
+            .first()
+        )
+        if pending_department_admin:
+            raise HTTPException(status_code=400, detail="A department admin request for this department is already pending")
+        department = payload.department
+        reviewer = "company admin"
+    else:
+        if payload.department not in ["IT", "Logistics", "TELECOM"]:
+            raise HTTPException(status_code=400, detail="Department must be IT, Logistics, or TELECOM")
+        existing_department_admin = (
+            db.query(User)
+            .filter(
+                User.company_id == company.id,
+                User.role == Role.DEPARTMENT_ADMIN,
+                User.department == payload.department,
+                User.is_active.is_(True),
+            )
+            .first()
+        )
+        if not existing_department_admin:
+            raise HTTPException(status_code=400, detail="Selected department has no approved department admin yet")
+        department = payload.department
+        reviewer = "department admin"
+
     req = RegistrationRequest(
         full_name=payload.full_name,
         username=payload.username,
         email=payload.email,
         password=payload.password,
         company_id=company.id,
-        department=payload.department,
+        department=department,
         requested_role=payload.requested_role,
         status=RegistrationStatus.PENDING,
     )
     db.add(req)
     db.commit()
-    return {"message": "Registration request submitted to admin for approval"}
+    return {"message": f"Registration request submitted. It will be reviewed by {reviewer}."}
 
 
 @app.post("/companies")
@@ -290,6 +413,33 @@ def create_company(payload: CompanyCreate, db: Session = Depends(get_db)):
 def create_user(payload: UserCreate, db: Session = Depends(get_db)):
     if payload.role != Role.PLATFORM_ADMIN and not payload.company_id:
         raise HTTPException(status_code=400, detail="company_id is required for non platform admins")
+    if payload.role == Role.PLATFORM_ADMIN:
+        existing_platform_admin = db.query(User).filter(User.role == Role.PLATFORM_ADMIN, User.is_active.is_(True)).first()
+        if existing_platform_admin:
+            raise HTTPException(status_code=400, detail="Only one platform admin is allowed")
+    if payload.role == Role.COMPANY_ADMIN:
+        company_admin_exists = (
+            db.query(User)
+            .filter(User.company_id == payload.company_id, User.role == Role.COMPANY_ADMIN, User.is_active.is_(True))
+            .first()
+        )
+        if company_admin_exists:
+            raise HTTPException(status_code=400, detail="Only one company admin is allowed per company")
+    if payload.role == Role.DEPARTMENT_ADMIN:
+        if payload.department not in ["IT", "Logistics", "TELECOM"]:
+            raise HTTPException(status_code=400, detail="Department admin must belong to IT, Logistics, or TELECOM")
+        department_admin_exists = (
+            db.query(User)
+            .filter(
+                User.company_id == payload.company_id,
+                User.role == Role.DEPARTMENT_ADMIN,
+                User.department == payload.department,
+                User.is_active.is_(True),
+            )
+            .first()
+        )
+        if department_admin_exists:
+            raise HTTPException(status_code=400, detail="Only one department admin is allowed for each department")
     user = User(
         full_name=payload.full_name,
         email=payload.email,
@@ -478,6 +628,7 @@ def list_requests(
             "vendor_id": req.vendor_id,
             "company_name": company.name,
             "requested_by": requester.full_name,
+            "requested_by_role": requester.role.value,
         }
         for req, company, requester in rows
     ]
@@ -491,7 +642,41 @@ def list_registration_requests(
     rows = (
         db.query(RegistrationRequest, Company)
         .join(Company, RegistrationRequest.company_id == Company.id)
-        .filter(RegistrationRequest.status == RegistrationStatus.PENDING)
+        .filter(
+            RegistrationRequest.status == RegistrationStatus.PENDING,
+            RegistrationRequest.requested_role == Role.COMPANY_ADMIN,
+        )
+        .order_by(RegistrationRequest.id.desc())
+        .all()
+    )
+    return [
+        {
+            "request_id": req.id,
+            "full_name": req.full_name,
+            "username": req.username,
+            "email": req.email,
+            "company_name": company.name,
+            "department": req.department,
+            "requested_role": req.requested_role.value,
+            "created_at": req.created_at.isoformat(),
+        }
+        for req, company in rows
+    ]
+
+
+@app.get("/company-admin/registration-requests")
+def list_company_admin_registration_requests(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(Role.COMPANY_ADMIN)),
+):
+    rows = (
+        db.query(RegistrationRequest, Company)
+        .join(Company, RegistrationRequest.company_id == Company.id)
+        .filter(
+            RegistrationRequest.status == RegistrationStatus.PENDING,
+            RegistrationRequest.company_id == current_user.company_id,
+            RegistrationRequest.requested_role == Role.DEPARTMENT_ADMIN,
+        )
         .order_by(RegistrationRequest.id.desc())
         .all()
     )
@@ -521,6 +706,17 @@ def approve_registration_request(
         raise HTTPException(status_code=404, detail="Request not found")
     if req.status != RegistrationStatus.PENDING:
         raise HTTPException(status_code=400, detail="Request is already processed")
+    if req.requested_role != Role.COMPANY_ADMIN:
+        raise HTTPException(status_code=400, detail="Platform admin can only approve company admin requests")
+
+    if req.requested_role == Role.COMPANY_ADMIN:
+        existing_admin = (
+            db.query(User)
+            .filter(User.company_id == req.company_id, User.role == Role.COMPANY_ADMIN, User.is_active.is_(True))
+            .first()
+        )
+        if existing_admin:
+            raise HTTPException(status_code=400, detail="This company already has a company admin")
 
     if db.query(User).filter((User.username == req.username) | (User.email == req.email)).first():
         req.status = RegistrationStatus.REJECTED
@@ -547,11 +743,239 @@ def approve_registration_request(
     return {"message": "Registration approved", "username": user.username}
 
 
+@app.post("/admin/registration-requests/{request_id}/reject")
+def reject_registration_request(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(Role.PLATFORM_ADMIN)),
+):
+    req = db.query(RegistrationRequest).filter(RegistrationRequest.id == request_id).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found")
+    if req.status != RegistrationStatus.PENDING:
+        raise HTTPException(status_code=400, detail="Request is already processed")
+    if req.requested_role != Role.COMPANY_ADMIN:
+        raise HTTPException(status_code=400, detail="Platform admin can only reject company admin requests")
+
+    req.status = RegistrationStatus.REJECTED
+    req.reviewed_by = current_user.id
+    req.reviewed_at = datetime.utcnow()
+    db.commit()
+    return {"message": "Registration rejected"}
+
+
+@app.get("/admin/users")
+def list_all_users_for_admin(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(Role.PLATFORM_ADMIN)),
+):
+    users = db.query(User).order_by(User.id.asc()).all()
+    return [
+        {
+            "id": u.id,
+            "full_name": u.full_name,
+            "username": u.username,
+            "email": u.email,
+            "role": u.role.value,
+            "company_id": u.company_id,
+            "department": u.department,
+            "is_active": u.is_active,
+        }
+        for u in users
+    ]
+
+
+@app.delete("/admin/users/{user_id}")
+def delete_user_by_platform_admin(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(Role.PLATFORM_ADMIN)),
+):
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="Platform admin cannot delete own account")
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    db.delete(user)
+    db.commit()
+    return {"message": "User deleted"}
+
+
+@app.post("/company-admin/registration-requests/{request_id}/approve")
+def approve_registration_request_by_company_admin(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(Role.COMPANY_ADMIN)),
+):
+    req = db.query(RegistrationRequest).filter(RegistrationRequest.id == request_id).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found")
+    if req.status != RegistrationStatus.PENDING:
+        raise HTTPException(status_code=400, detail="Request is already processed")
+    if req.company_id != current_user.company_id:
+        raise HTTPException(status_code=403, detail="You can approve requests only for your company")
+    if req.requested_role != Role.DEPARTMENT_ADMIN:
+        raise HTTPException(status_code=400, detail="Company admin can only approve department admin requests")
+    existing_department_admin = (
+        db.query(User)
+        .filter(
+            User.company_id == req.company_id,
+            User.role == Role.DEPARTMENT_ADMIN,
+            User.department == req.department,
+            User.is_active.is_(True),
+        )
+        .first()
+    )
+    if existing_department_admin:
+        raise HTTPException(status_code=400, detail="This department already has a department admin")
+
+    if db.query(User).filter((User.username == req.username) | (User.email == req.email)).first():
+        req.status = RegistrationStatus.REJECTED
+        req.reviewed_by = current_user.id
+        req.reviewed_at = datetime.utcnow()
+        db.commit()
+        raise HTTPException(status_code=400, detail="Username or email already exists in users")
+
+    user = User(
+        full_name=req.full_name,
+        username=req.username,
+        email=req.email,
+        password=req.password,
+        role=req.requested_role,
+        company_id=req.company_id,
+        department=req.department,
+        is_active=True,
+    )
+    db.add(user)
+    req.status = RegistrationStatus.APPROVED
+    req.reviewed_by = current_user.id
+    req.reviewed_at = datetime.utcnow()
+    db.commit()
+    return {"message": "Registration approved", "username": user.username}
+
+
+@app.post("/company-admin/registration-requests/{request_id}/reject")
+def reject_registration_request_by_company_admin(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(Role.COMPANY_ADMIN)),
+):
+    req = db.query(RegistrationRequest).filter(RegistrationRequest.id == request_id).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found")
+    if req.status != RegistrationStatus.PENDING:
+        raise HTTPException(status_code=400, detail="Request is already processed")
+    if req.company_id != current_user.company_id:
+        raise HTTPException(status_code=403, detail="You can review requests only for your company")
+    if req.requested_role != Role.DEPARTMENT_ADMIN:
+        raise HTTPException(status_code=400, detail="Company admin can only review department admin requests")
+
+    req.status = RegistrationStatus.REJECTED
+    req.reviewed_by = current_user.id
+    req.reviewed_at = datetime.utcnow()
+    db.commit()
+    return {"message": "Registration rejected"}
+
+
+@app.get("/department-admin/registration-requests")
+def list_department_admin_registration_requests(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(Role.DEPARTMENT_ADMIN)),
+):
+    rows = (
+        db.query(RegistrationRequest, Company)
+        .join(Company, RegistrationRequest.company_id == Company.id)
+        .filter(
+            RegistrationRequest.status == RegistrationStatus.PENDING,
+            RegistrationRequest.company_id == current_user.company_id,
+            RegistrationRequest.department == current_user.department,
+            RegistrationRequest.requested_role.in_([Role.STORAGE_HOLDER, Role.PROCUREMENT_DECIDER]),
+        )
+        .order_by(RegistrationRequest.id.desc())
+        .all()
+    )
+    return [
+        {
+            "request_id": req.id,
+            "full_name": req.full_name,
+            "username": req.username,
+            "email": req.email,
+            "company_name": company.name,
+            "department": req.department,
+            "requested_role": req.requested_role.value,
+            "created_at": req.created_at.isoformat(),
+        }
+        for req, company in rows
+    ]
+
+
+@app.post("/department-admin/registration-requests/{request_id}/approve")
+def approve_registration_request_by_department_admin(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(Role.DEPARTMENT_ADMIN)),
+):
+    req = db.query(RegistrationRequest).filter(RegistrationRequest.id == request_id).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found")
+    if req.status != RegistrationStatus.PENDING:
+        raise HTTPException(status_code=400, detail="Request is already processed")
+    if req.company_id != current_user.company_id or req.department != current_user.department:
+        raise HTTPException(status_code=403, detail="You can approve only requests in your department")
+    if req.requested_role not in [Role.STORAGE_HOLDER, Role.PROCUREMENT_DECIDER]:
+        raise HTTPException(status_code=400, detail="Department admin can only approve storage/procurement requests")
+    if db.query(User).filter((User.username == req.username) | (User.email == req.email)).first():
+        req.status = RegistrationStatus.REJECTED
+        req.reviewed_by = current_user.id
+        req.reviewed_at = datetime.utcnow()
+        db.commit()
+        raise HTTPException(status_code=400, detail="Username or email already exists in users")
+
+    user = User(
+        full_name=req.full_name,
+        username=req.username,
+        email=req.email,
+        password=req.password,
+        role=req.requested_role,
+        company_id=req.company_id,
+        department=req.department,
+        is_active=True,
+    )
+    db.add(user)
+    req.status = RegistrationStatus.APPROVED
+    req.reviewed_by = current_user.id
+    req.reviewed_at = datetime.utcnow()
+    db.commit()
+    return {"message": "Registration approved", "username": user.username}
+
+
+@app.post("/department-admin/registration-requests/{request_id}/reject")
+def reject_registration_request_by_department_admin(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(Role.DEPARTMENT_ADMIN)),
+):
+    req = db.query(RegistrationRequest).filter(RegistrationRequest.id == request_id).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found")
+    if req.status != RegistrationStatus.PENDING:
+        raise HTTPException(status_code=400, detail="Request is already processed")
+    if req.company_id != current_user.company_id or req.department != current_user.department:
+        raise HTTPException(status_code=403, detail="You can reject only requests in your department")
+    if req.requested_role not in [Role.STORAGE_HOLDER, Role.PROCUREMENT_DECIDER]:
+        raise HTTPException(status_code=400, detail="Department admin can only review storage/procurement requests")
+    req.status = RegistrationStatus.REJECTED
+    req.reviewed_by = current_user.id
+    req.reviewed_at = datetime.utcnow()
+    db.commit()
+    return {"message": "Registration rejected"}
+
+
 @app.post("/requests")
 def create_purchase_request(
     payload: PurchaseRequestCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(Role.PROCUREMENT_DECIDER, Role.COMPANY_ADMIN, Role.PLATFORM_ADMIN)),
+    current_user: User = Depends(require_roles(Role.STORAGE_HOLDER, Role.PROCUREMENT_DECIDER, Role.COMPANY_ADMIN, Role.DEPARTMENT_ADMIN)),
 ):
     if current_user.role != Role.PLATFORM_ADMIN and current_user.company_id is None:
         raise HTTPException(status_code=400, detail="User has no company context")
@@ -611,17 +1035,179 @@ def create_purchase_request(
     }
 
 
+@app.get("/procurement/storage-requests")
+def list_storage_holder_requests_for_procurement(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(Role.PROCUREMENT_DECIDER)),
+):
+    rows = (
+        db.query(PurchaseRequest, User, Company)
+        .join(User, PurchaseRequest.requested_by == User.id)
+        .join(Company, PurchaseRequest.company_id == Company.id)
+        .filter(
+            PurchaseRequest.company_id == current_user.company_id,
+            PurchaseRequest.department == current_user.department,
+            User.role == Role.STORAGE_HOLDER,
+            PurchaseRequest.status.in_([RequestStatus.SUBMITTED, RequestStatus.APPROVED]),
+        )
+        .order_by(PurchaseRequest.id.desc())
+        .all()
+    )
+    return [
+        {
+            "request_id": req.id,
+            "title": req.title,
+            "status": req.status.value,
+            "requested_by": requester.full_name,
+            "department": req.department,
+            "company_name": company.name,
+        }
+        for req, requester, company in rows
+    ]
+
+
+def _request_tokens(req: PurchaseRequest) -> list[str]:
+    text = f"{(req.title or '').lower()} {(req.description or '').lower()} {(req.department or '').lower()}"
+    return [token for token in text.replace("/", " ").replace(",", " ").split() if token]
+
+
+def _vendor_matches_request(vendor: Vendor, req: PurchaseRequest) -> bool:
+    if not vendor.provided_categories:
+        return False
+    categories = vendor.provided_categories.lower()
+    return any(token in categories for token in _request_tokens(req))
+
+
+def _find_vendor_for_accepted_request(db: Session, req: PurchaseRequest):
+    same_company_vendors = db.query(Vendor).filter(Vendor.company_id == req.company_id, Vendor.is_trusted.is_(True)).all()
+    for vendor in same_company_vendors:
+        if _vendor_matches_request(vendor, req):
+            return {
+                "strategy": "company_approved_vendor",
+                "vendor_id": vendor.id,
+                "vendor_name": vendor.company_name,
+                "provided_categories": vendor.provided_categories,
+                "message": "Matched from your company's approved vendor list.",
+            }
+
+    cross_company_vendors = db.query(Vendor).filter(Vendor.company_id != req.company_id).all()
+    for vendor in cross_company_vendors:
+        if _vendor_matches_request(vendor, req):
+            return {
+                "strategy": "cross_company_vendor",
+                "vendor_id": vendor.id,
+                "vendor_name": vendor.company_name,
+                "provided_categories": vendor.provided_categories,
+                "message": "No internal match; matched from other companies' vendors.",
+            }
+
+    ai_fallback = run_recommendation_pipeline(db, req, top_n=3)
+    if ai_fallback.get("results"):
+        return {
+            "strategy": "ai_recommendation_fallback",
+            "message": "No approved vendor match found. AI recommendation fallback used.",
+            "ai_results": ai_fallback["results"],
+        }
+
+    return {
+        "strategy": "internet_search_required",
+        "message": "No vendor found on platform. AI internet search should be triggered.",
+        "ai_results": [],
+    }
+
+
+@app.post("/procurement/requests/{request_id}/accept")
+def accept_storage_request(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(Role.PROCUREMENT_DECIDER)),
+):
+    req = db.query(PurchaseRequest).filter(PurchaseRequest.id == request_id).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found")
+    require_same_company_or_admin(req.company_id, current_user)
+    if req.department != current_user.department:
+        raise HTTPException(status_code=403, detail="You can accept only requests from your department")
+    if req.status != RequestStatus.SUBMITTED:
+        raise HTTPException(status_code=400, detail="Only submitted requests can be accepted")
+
+    sourcing = _find_vendor_for_accepted_request(db, req)
+    if sourcing.get("vendor_id"):
+        req.vendor_id = sourcing["vendor_id"]
+    req.status = RequestStatus.APPROVED
+    db.commit()
+    return {"message": "Request accepted", "sourcing": sourcing}
+
+
+@app.post("/procurement/requests/{request_id}/decline")
+def decline_storage_request(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(Role.PROCUREMENT_DECIDER)),
+):
+    req = db.query(PurchaseRequest).filter(PurchaseRequest.id == request_id).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found")
+    require_same_company_or_admin(req.company_id, current_user)
+    if req.department != current_user.department:
+        raise HTTPException(status_code=403, detail="You can decline only requests from your department")
+    if req.status not in [RequestStatus.SUBMITTED, RequestStatus.APPROVED]:
+        raise HTTPException(status_code=400, detail="Only submitted or accepted requests can be declined")
+    req.status = RequestStatus.REJECTED
+    db.commit()
+    return {"message": "Request declined"}
+
+
+@app.post("/procurement/requests/{request_id}/done")
+def mark_storage_request_done(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(Role.PROCUREMENT_DECIDER)),
+):
+    req = db.query(PurchaseRequest).filter(PurchaseRequest.id == request_id).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found")
+    require_same_company_or_admin(req.company_id, current_user)
+    if req.status != RequestStatus.APPROVED:
+        raise HTTPException(status_code=400, detail="Only accepted requests can be marked done")
+    req.status = RequestStatus.DONE
+    db.commit()
+    return {"message": "Request marked as done"}
+
+
 @app.post("/vendors")
 def create_vendor(
     payload: VendorCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(Role.COMPANY_ADMIN, Role.PLATFORM_ADMIN)),
 ):
-    vendor = Vendor(**payload.model_dump())
+    data = payload.model_dump()
+    data["company_id"] = current_user.company_id if current_user.role == Role.COMPANY_ADMIN else data.get("company_id")
+    vendor = Vendor(**data)
     db.add(vendor)
     db.commit()
     db.refresh(vendor)
     return vendor
+
+
+@app.get("/company/vendors")
+def list_company_vendors(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(Role.COMPANY_ADMIN, Role.PLATFORM_ADMIN)),
+):
+    query = db.query(Vendor)
+    if current_user.role == Role.COMPANY_ADMIN:
+        query = query.filter(Vendor.company_id == current_user.company_id)
+    rows = query.order_by(Vendor.company_name.asc()).all()
+    return [
+        {
+            "vendor_id": v.id,
+            "vendor_name": v.company_name,
+            "is_trusted": v.is_trusted,
+            "provided_categories": v.provided_categories,
+        }
+        for v in rows
+    ]
 
 
 @app.post("/vendor-offers")

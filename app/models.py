@@ -10,6 +10,7 @@ from app.database import Base
 class Role(str, enum.Enum):
     STORAGE_HOLDER = "storage_holder"
     PROCUREMENT_DECIDER = "procurement_decider"
+    DEPARTMENT_ADMIN = "department_admin"
     COMPANY_ADMIN = "company_admin"
     PLATFORM_ADMIN = "platform_admin"
     VENDOR_USER = "vendor_user"
@@ -21,6 +22,7 @@ class RequestStatus(str, enum.Enum):
     RECOMMENDED = "recommended"
     APPROVED = "approved"
     REJECTED = "rejected"
+    DONE = "done"
 
 
 class RegistrationStatus(str, enum.Enum):
@@ -113,7 +115,9 @@ class Vendor(Base):
     __tablename__ = "vendors"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id"), nullable=True, index=True)
     company_name: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    provided_categories: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_trusted: Mapped[bool] = mapped_column(Boolean, default=False)
     reliability_score: Mapped[float] = mapped_column(Float, default=50.0)
     quality_score: Mapped[float] = mapped_column(Float, default=50.0)

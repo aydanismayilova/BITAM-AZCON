@@ -28,7 +28,7 @@ class RegistrationRequestCreate(BaseModel):
     email: EmailStr
     password: str = Field(min_length=4)
     company_name: str
-    department: str
+    department: str | None = None
     requested_role: Role
 
 
@@ -97,6 +97,7 @@ class PurchaseRequestOut(BaseModel):
 
 class VendorCreate(BaseModel):
     company_name: str
+    provided_categories: str | None = None
     is_trusted: bool = False
     reliability_score: float = 50.0
     quality_score: float = 50.0
