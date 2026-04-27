@@ -44,7 +44,13 @@ function renderDepartments() {
     depWrap.style.opacity = "0.7";
     return;
   }
-  const departments = ["IT", "Logistics", "TELECOM"];
+  const departments = [
+    "IT & Tech",
+    "Construction & Heavy",
+    "Logistics & Aviation",
+    "Maritime",
+    "Others",
+  ];
   depSelect.disabled = false;
   depWrap.style.opacity = "1";
   depSelect.innerHTML = departments.map((d) => `<option value="${d}">${d}</option>`).join("");

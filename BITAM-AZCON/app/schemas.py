@@ -72,6 +72,14 @@ class PurchaseRequestCreate(BaseModel):
     vendor_id: int | None = None
     delivery_date: str | None = None
     shipping_cost: float = 1000.0
+    # AI-agent aligned fields (all optional; mirror /api/search payload)
+    unit: str | None = None
+    total_budget: float | None = None
+    min_reliability_score: float | None = None
+    azcon_reference_required: bool = False
+    service_duration: str | None = None
+    start_date: str | None = None
+    service_level: str | None = None
 
 
 class PurchaseRequestOut(BaseModel):

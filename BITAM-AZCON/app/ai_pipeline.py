@@ -9,6 +9,10 @@ from app.models import PurchaseRequest, ResearchCache, Vendor, VendorOffer
 def _normalize_query(req: PurchaseRequest) -> str:
     return f"{req.title.strip().lower()}::{req.description.strip().lower()}"
 
+def _tokens(text: str) -> list[str]:
+    cleaned = "".join(ch if (ch.isalnum() or ch.isspace()) else " " for ch in (text or "").lower())
+    return [t for t in cleaned.split() if len(t) >= 3]
+
 
 def _score_offer(offer: VendorOffer, vendor: Vendor):
     financial = max(0.0, 100.0 - min(100.0, offer.price / 10.0))
@@ -36,16 +40,25 @@ def run_recommendation_pipeline(db: Session, purchase_request: PurchaseRequest, 
         if expiry > now:
             return {"source": "cache", "query": query, "results": json.loads(cache.payload_json)}
 
-    offers = (
+    # Offer matching: use token overlap instead of strict substring on title.
+    title_tokens = set(_tokens(purchase_request.title or ""))
+    desc_tokens = set(_tokens(purchase_request.description or ""))
+    req_tokens = title_tokens | desc_tokens
+
+    raw_offers = (
         db.query(VendorOffer, Vendor)
         .join(Vendor, VendorOffer.vendor_id == Vendor.id)
         .filter(VendorOffer.is_active.is_(True))
-        .filter(VendorOffer.category.ilike(f"%{purchase_request.title.lower()}%"))
         .all()
     )
 
     ranked = []
-    for offer, vendor in offers:
+    for offer, vendor in raw_offers:
+        hay = f"{offer.category or ''} {offer.title or ''}".lower()
+        if req_tokens:
+            match_count = sum(1 for t in req_tokens if t in hay)
+            if match_count <= 0:
+                continue
         score = _score_offer(offer, vendor)
         ranked.append(
             {

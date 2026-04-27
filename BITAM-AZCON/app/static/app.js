@@ -102,7 +102,7 @@ window.loadVendorProfile = async function (vendorId) {
     <h4>${esc(p.vendor_name)}</h4>
     <p><strong>About:</strong> ${esc(p.about)}</p>
     <p><strong>Feedback:</strong> ${p.feedback.map((f) => `${esc(f.buyer)} (${f.rating}/5) - ${esc(f.comment)}`).join(" | ")}</p>
-    <p><strong>Əvvəlki satışlar:</strong> ${p.previous_sales.map((s) => `${esc(s.company)} → ${esc(s.what_sold)}`).join(" | ")}</p>
+    <p><strong>Previous Sales:</strong> ${p.previous_sales.map((s) => `${esc(s.company)} → ${esc(s.what_sold)}`).join(" | ")}</p>
   `;
 };
 
@@ -122,23 +122,82 @@ if (btnManualNeed) {
   };
 }
 
+const reqItemTypeEl = document.getElementById("reqItemType");
+const reqProductFieldsEl = document.getElementById("reqProductFields");
+const reqServiceFieldsEl = document.getElementById("reqServiceFields");
+const reqMinReliabilityEl = document.getElementById("reqMinReliability");
+const reqMinReliabilityValueEl = document.getElementById("reqMinReliabilityValue");
+const reqCategoryEl = document.getElementById("reqCategory");
+const reqDeadlineEl = document.getElementById("reqDeadline");
+const reqStartDateEl = document.getElementById("reqStartDate");
+
+function _isoDateInDays(days) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function syncProductServiceFields() {
+  if (!reqItemTypeEl) return;
+  const isProduct = reqItemTypeEl.value === "product";
+  if (reqProductFieldsEl) reqProductFieldsEl.classList.toggle("hidden", !isProduct);
+  if (reqServiceFieldsEl) reqServiceFieldsEl.classList.toggle("hidden", isProduct);
+}
+if (reqItemTypeEl) reqItemTypeEl.addEventListener("change", syncProductServiceFields);
+syncProductServiceFields();
+
+if (reqMinReliabilityEl && reqMinReliabilityValueEl) {
+  reqMinReliabilityEl.addEventListener("input", () => {
+    reqMinReliabilityValueEl.textContent = Number(reqMinReliabilityEl.value).toFixed(1);
+  });
+}
+
+if (reqDeadlineEl && !reqDeadlineEl.value) reqDeadlineEl.value = _isoDateInDays(7);
+if (reqStartDateEl && !reqStartDateEl.value) reqStartDateEl.value = _isoDateInDays(3);
+
+// Pre-fill the Category dropdown with the user's department (which now follows
+// the AI agent's 5-category vocabulary).
+if (reqCategoryEl && user && user.department) {
+  const match = Array.from(reqCategoryEl.options).find((o) => o.value === user.department);
+  if (match) reqCategoryEl.value = user.department;
+}
+
 const btnCreateRequest = document.getElementById("btnCreateRequest");
 if (btnCreateRequest) {
   btnCreateRequest.onclick = async () => {
+    const vendorSelectEl = document.getElementById("reqVendorId");
+    const selectedVendor = vendorSelectEl?.value ? Number(vendorSelectEl.value) : null;
+    const itemType = document.getElementById("reqItemType").value;
+    const isProduct = itemType === "product";
+    const category = reqCategoryEl?.value || user.department || "Others";
+    const deadline = document.getElementById("reqDeadline")?.value || "";
+    const startDate = document.getElementById("reqStartDate")?.value || "";
+    const totalBudget = Number(document.getElementById("reqTotalBudget").value) || 0;
+    const minReliability = Number(document.getElementById("reqMinReliability").value) || 4.0;
+    const azconOnly = document.getElementById("reqAzconOnly").checked;
+
     const payload = {
       title: document.getElementById("reqTitle").value,
       description: document.getElementById("reqDescription").value,
-      quantity: Number(document.getElementById("reqQty").value),
-      required_by: document.getElementById("reqDeliveryDate").value,
+      quantity: isProduct ? Number(document.getElementById("reqQty").value) || 1 : 1,
+      required_by: isProduct ? deadline : startDate,
       budget_min: 0,
-      budget_max: 0,
-      item_type: document.getElementById("reqItemType").value,
-      vendor_id: Number(document.getElementById("reqVendorId").value),
-      delivery_date: document.getElementById("reqDeliveryDate").value,
-      department: user.department,
+      budget_max: totalBudget,
+      item_type: itemType,
+      vendor_id: user.role === "storage_holder" ? null : selectedVendor,
+      delivery_date: isProduct ? deadline : startDate,
+      department: category,
+      // AI-agent aligned fields (mirrored from /api/search payload)
+      unit: isProduct ? document.getElementById("reqUnit").value : null,
+      total_budget: totalBudget,
+      min_reliability_score: minReliability,
+      azcon_reference_required: azconOnly,
+      service_duration: isProduct ? null : document.getElementById("reqServiceDuration").value.trim(),
+      start_date: isProduct ? null : startDate,
+      service_level: isProduct ? null : document.getElementById("reqServiceLevel").value,
     };
     const out = await api("/requests", "POST", payload);
-    document.getElementById("reqOut").innerHTML = `Sifariş #${out.request_id} yaradıldı. Shipping: ${esc(out.shipping_cost)} ${
+    document.getElementById("reqOut").innerHTML = `Request #${out.request_id} created. Shipping: ${esc(out.shipping_cost)} ${
       out.shared_logistics_badge ? `<span class="badge ok">${esc(out.shared_logistics_badge)}</span>` : ""
     }`;
     await refreshRequestOptions();
@@ -151,8 +210,8 @@ if (btnRecommend) {
     const reqId = Number(document.getElementById("recommendReqId").value);
     const topN = Number(document.getElementById("topN").value);
     const out = await api(`/requests/${reqId}/recommend?top_n=${topN}`, "POST");
-    document.getElementById("recommendOut").innerHTML = `<table class="table"><thead><tr><th>Vendor</th><th>Qiymət</th><th>Müddət</th><th>Score</th><th>İzah</th></tr></thead><tbody>${out.results
-      .map((r) => `<tr><td>${esc(r.vendor_name)}</td><td>${esc(r.price)} ${esc(r.currency)}</td><td>${esc(r.lead_time_days)} gün</td><td>${esc(r.scores.total)}</td><td>${esc(r.reasoning)}</td></tr>`)
+    document.getElementById("recommendOut").innerHTML = `<table class="table"><thead><tr><th>Vendor</th><th>Price</th><th>Lead Time</th><th>Score</th><th>Reason</th></tr></thead><tbody>${out.results
+      .map((r) => `<tr><td>${esc(r.vendor_name)}</td><td>${esc(r.price)} ${esc(r.currency)}</td><td>${esc(r.lead_time_days)} days</td><td>${esc(r.scores.total)}</td><td>${esc(r.reasoning)}</td></tr>`)
       .join("")}</tbody></table>`;
   };
 }
@@ -296,6 +355,30 @@ window.acceptStorageRequest = async function (requestId) {
   await api(`/procurement/requests/${requestId}/accept`, "POST");
   await loadStorageRequests();
 };
+let storageRequestRowsCache = [];
+window.searchVendorForRequest = function (requestId) {
+  const req = storageRequestRowsCache.find((r) => Number(r.request_id) === Number(requestId));
+  if (!req) return;
+  const totalBudget = Number(req.total_budget || req.budget_max || req.budget_min || 50000);
+  const deadline = req.delivery_date || req.required_by || "";
+  const startDate = req.start_date || deadline;
+  const params = new URLSearchParams({
+    request_id: String(req.request_id),
+    query: req.title || "",
+    procurement_type: req.item_type || "product",
+    quantity: String(req.quantity || 1),
+    total_budget: String(totalBudget),
+    department: req.department || "Others",
+    deadline: deadline,
+    start_date: startDate,
+    service_duration: req.service_duration || "3 months",
+    service_level: req.service_level || "Standard",
+    min_reliability_score: String(req.min_reliability_score ?? 4.0),
+    azcon_reference_required: req.azcon_reference_required ? "true" : "false",
+  });
+  if (req.unit) params.set("unit", req.unit);
+  window.location.href = `/ai-agent?${params.toString()}`;
+};
 window.declineStorageRequest = async function (requestId) {
   await api(`/procurement/requests/${requestId}/decline`, "POST");
   await loadStorageRequests();
@@ -309,21 +392,22 @@ async function loadStorageRequests() {
   const outEl = document.getElementById("storageRequestsOut");
   if (!outEl) return;
   const rows = await api("/procurement/storage-requests");
+  storageRequestRowsCache = rows || [];
   if (!rows.length) {
-    outEl.innerHTML = "No storage holder requests to review.";
+    outEl.innerHTML = "No department requests to review.";
     return;
   }
-  outEl.innerHTML = `<table class="table"><thead><tr><th>Title</th><th>Requester</th><th>Department</th><th>Status</th><th>Actions</th></tr></thead><tbody>${rows
+  outEl.innerHTML = `<table class="table"><thead><tr><th>Title</th><th>Requester</th><th>Role</th><th>Department</th><th>Vendor</th><th>Status</th><th>Actions</th></tr></thead><tbody>${rows
     .map((r) => {
       let actions = "";
       if (r.status === "submitted") {
-        actions = `<button class="btn btn-small" onclick="acceptStorageRequest(${r.request_id})">Accept</button> <button class="btn btn-small" onclick="declineStorageRequest(${r.request_id})">Decline</button>`;
+        actions = `<button class="btn btn-small" onclick="searchVendorForRequest(${r.request_id})">Search Vendor</button> <button class="btn btn-small" onclick="acceptStorageRequest(${r.request_id})">Accept</button> <button class="btn btn-small" onclick="declineStorageRequest(${r.request_id})">Decline</button>`;
       } else if (r.status === "approved") {
-        actions = `<button class="btn btn-small" onclick="doneStorageRequest(${r.request_id})">Done</button> <button class="btn btn-small" onclick="declineStorageRequest(${r.request_id})">Decline</button>`;
+        actions = `<button class="btn btn-small" onclick="searchVendorForRequest(${r.request_id})">Search Vendor</button> <button class="btn btn-small" onclick="doneStorageRequest(${r.request_id})">Done</button> <button class="btn btn-small" onclick="declineStorageRequest(${r.request_id})">Decline</button>`;
       } else {
         actions = "-";
       }
-      return `<tr><td>${esc(r.title)}</td><td>${esc(r.requested_by)}</td><td>${esc(r.department || "-")}</td><td>${esc(r.status)}</td><td>${actions}</td></tr>`;
+      return `<tr><td>${esc(r.title)}</td><td>${esc(r.requested_by)}</td><td>${esc(r.requested_by_role || "-")}</td><td>${esc(r.department || "-")}</td><td>${esc(r.vendor_name || "-")}</td><td>${esc(r.status)}</td><td>${actions}</td></tr>`;
     })
     .join("")}</tbody></table>`;
 }
@@ -383,8 +467,97 @@ document.getElementById("userDepartment").textContent = user.department || "-";
 applyRoleHeader();
 applyRoleView();
 setupSectionTabs();
-loadVendors();
 refreshRequestOptions();
+
+const reqVendorField = document.getElementById("reqVendorField");
+if (user.role === "storage_holder" && reqVendorField) {
+  reqVendorField.classList.add("hidden");
+  const vendorSelect = document.getElementById("reqVendorId");
+  if (vendorSelect) vendorSelect.value = "";
+}
+
+async function loadDepartmentProcurements() {
+  const outEl = document.getElementById("deptProcurementsOut");
+  if (!outEl) return;
+  const rows = await api("/department-admin/procurements");
+  if (!rows.length) {
+    outEl.innerHTML = "No procurement requests submitted in your department yet.";
+    return;
+  }
+  const statusBadge = (s) => {
+    const cls = s === "DONE" ? "ok" : s === "REJECTED" ? "warn" : "";
+    return `<span class="badge ${cls}">${esc(s)}</span>`;
+  };
+  outEl.innerHTML = `<table class="table"><thead><tr>
+      <th>#</th><th>Title</th><th>Status</th><th>Type</th><th>Qty</th>
+      <th>Total Budget</th><th>Vendor</th><th>Decided/Required</th>
+      <th>Requested By</th>
+    </tr></thead><tbody>${rows
+      .map(
+        (r) =>
+          `<tr>
+            <td>${r.request_id}</td>
+            <td>${esc(r.title)}</td>
+            <td>${statusBadge(r.status)}</td>
+            <td>${esc(r.item_type || "-")}</td>
+            <td>${esc((r.quantity ?? "-") + (r.unit ? " " + r.unit : ""))}</td>
+            <td>${r.total_budget != null ? Number(r.total_budget).toLocaleString() : "-"}</td>
+            <td>${esc(r.vendor_name || "-")}</td>
+            <td>${esc(r.delivery_date || r.required_by || "-")}</td>
+            <td>${esc(r.requested_by)} <small class="muted">(${esc(r.requested_by_role)})</small></td>
+          </tr>`,
+      )
+      .join("")}</tbody></table>`;
+}
+
+async function loadCompanyDepartmentsOverview() {
+  const outEl = document.getElementById("companyOverviewOut");
+  if (!outEl) return;
+  const rows = await api("/company-admin/department-activity");
+  if (!rows.length) {
+    outEl.innerHTML = "No department activity yet.";
+    return;
+  }
+  outEl.innerHTML = rows
+    .map((d) => {
+      const statusPills = Object.entries(d.status_counts || {})
+        .map(([s, n]) => `<span class="badge">${esc(s)}: ${n}</span>`)
+        .join(" ");
+      const recentRows = (d.recent || [])
+        .map(
+          (r) =>
+            `<tr>
+              <td>${r.request_id}</td>
+              <td>${esc(r.title)}</td>
+              <td>${esc(r.status)}</td>
+              <td>${esc(r.vendor_name || "-")}</td>
+              <td>${r.total_budget != null ? Number(r.total_budget).toLocaleString() : "-"}</td>
+              <td>${esc(r.delivery_date || "-")}</td>
+            </tr>`,
+        )
+        .join("");
+      return `
+        <div class="section-group" style="margin-bottom:14px;">
+          <div class="section-head">
+            <h3>${esc(d.department)}</h3>
+            <p>Department Admin: <strong>${esc(d.department_admin || "— vacant —")}</strong>
+              ${d.department_admin_username ? `<small class="muted">(${esc(d.department_admin_username)})</small>` : ""}
+            </p>
+          </div>
+          <div class="analytics-grid">
+            <div class="analytics-stat"><div class="label">Total Requests</div><div class="value">${d.total_requests}</div></div>
+            <div class="analytics-stat"><div class="label">Completed Spend</div><div class="value">${Number(d.total_spend_done || 0).toLocaleString()}</div></div>
+            <div class="analytics-stat" style="grid-column:span 2;"><div class="label">Status Mix</div><div class="value">${statusPills || "-"}</div></div>
+          </div>
+          ${
+            recentRows
+              ? `<table class="table"><thead><tr><th>#</th><th>Title</th><th>Status</th><th>Vendor</th><th>Budget</th><th>Delivery</th></tr></thead><tbody>${recentRows}</tbody></table>`
+              : `<div class="output">No recent requests.</div>`
+          }
+        </div>`;
+    })
+    .join("");
+}
 
 const loadCompanyApprovalsBtn = document.getElementById("btnLoadCompanyApprovals");
 if (loadCompanyApprovalsBtn) {
@@ -401,6 +574,14 @@ if (loadStorageRequestsBtn) {
 const loadDepartmentApprovalsBtn = document.getElementById("btnLoadDepartmentApprovals");
 if (loadDepartmentApprovalsBtn) {
   loadDepartmentApprovalsBtn.onclick = loadDepartmentApprovals;
+}
+const loadDeptProcurementsBtn = document.getElementById("btnLoadDeptProcurements");
+if (loadDeptProcurementsBtn) {
+  loadDeptProcurementsBtn.onclick = loadDepartmentProcurements;
+}
+const loadCompanyOverviewBtn = document.getElementById("btnLoadCompanyOverview");
+if (loadCompanyOverviewBtn) {
+  loadCompanyOverviewBtn.onclick = loadCompanyDepartmentsOverview;
 }
 const loadStorageInventoryBtn = document.getElementById("btnLoadStorageInventory");
 if (loadStorageInventoryBtn) {
@@ -422,9 +603,11 @@ if (user.role === "platform_admin") {
 }
 if (user.role === "company_admin") {
   loadCompanyApprovals();
+  loadCompanyDepartmentsOverview();
 }
 if (user.role === "department_admin") {
   loadDepartmentApprovals();
+  loadDepartmentProcurements();
 }
 if (user.role === "procurement_decider") {
   loadStorageRequests();

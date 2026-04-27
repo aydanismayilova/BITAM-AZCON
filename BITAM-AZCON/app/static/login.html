@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AZCON Login</title>
+    <title>AZCON Procurement</title>
     <script>
       if (window.location.protocol === "file:") {
         window.location.replace("http://127.0.0.1:8000/");
@@ -11,293 +11,492 @@
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/static/styles.css" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap"
+      rel="stylesheet"
+    />
     <style>
       *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
       :root {
-        --bg: #f0ede8;
-        --card: #ffffff;
-        --border: #d8d4ce;
-        --text: #1a1816;
-        --text-muted: #7a756e;
-        --accent: #1a3a2a;
-        --accent-hover: #0f2318;
-        --accent-light: #e8f0eb;
-        --danger: #c0392b;
-        --radius: 10px;
-        --shadow: 0 4px 24px rgba(0,0,0,0.08);
-        --transition: 0.25s ease;
+        --text: #0f1729;
+        --text-soft: #5b6478;
+        --text-muted: #8a93a6;
+        --border: #e3e7f1;
+        --border-strong: #cdd4e3;
+        --divider: #eef1f8;
+        --surface: #ffffff;
+        --surface-soft: #fafbff;
+        --accent: #4663ff;
+        --accent-hover: #2f4be0;
+        --accent-soft: #e2e8ff;
+        --danger: #b42318;
+        --ok: #027a48;
+        --transition: 180ms cubic-bezier(0.4, 0, 0.2, 1);
+        --ring: 0 0 0 4px rgba(70, 99, 255, 0.18);
       }
+
+      html, body { height: 100%; }
 
       body {
-        font-family: 'DM Sans', sans-serif;
-        background: var(--bg);
-        min-height: 100vh;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 24px;
+        font-family: "Inter", "Segoe UI", Arial, sans-serif;
+        font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+        color: var(--text);
+        font-size: 15px;
+        line-height: 1.5;
+        background: var(--surface);
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
       }
 
-      /* Subtle grid texture */
-      body::before {
-        content: '';
-        position: fixed;
+      .auth-shell {
+        min-height: 100vh;
+        display: grid;
+        grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+      }
+
+      /* ───── Left brand panel ───── */
+      .auth-brand {
+        position: relative;
+        background:
+          radial-gradient(circle at 18% 14%, rgba(124, 142, 255, 0.22), transparent 55%),
+          radial-gradient(circle at 90% 84%, rgba(83, 56, 255, 0.18), transparent 50%),
+          linear-gradient(180deg, #0e1428 0%, #16203a 60%, #1a2546 100%);
+        color: #e6ebfa;
+        padding: 56px 64px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        overflow: hidden;
+      }
+
+      .auth-brand::after {
+        content: "";
+        position: absolute;
         inset: 0;
         background-image:
-          linear-gradient(var(--border) 1px, transparent 1px),
-          linear-gradient(90deg, var(--border) 1px, transparent 1px);
-        background-size: 40px 40px;
-        opacity: 0.35;
+          linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+        background-size: 48px 48px;
+        mask-image: linear-gradient(180deg, transparent, black 40%, black 60%, transparent);
         pointer-events: none;
       }
 
-      .card {
-        background: var(--card);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        box-shadow: var(--shadow);
-        width: 100%;
-        max-width: 420px;
-        padding: 40px 36px;
+      .brand-mark {
+        display: inline-flex;
+        align-items: center;
+        gap: 14px;
         position: relative;
         z-index: 1;
       }
 
-      /* ── Header ── */
-      .card-header {
-        margin-bottom: 32px;
+      .brand-mark .logo {
+        width: 46px;
+        height: 46px;
+        border-radius: 13px;
+        background: linear-gradient(135deg, #4663ff 0%, #6b46ff 100%);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        color: #fff;
+        display: grid;
+        place-items: center;
+        font-weight: 800;
+        font-size: 20px;
+        letter-spacing: -0.02em;
+        box-shadow: 0 8px 22px rgba(70, 99, 255, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25);
       }
 
-      .brand {
-        font-family: 'DM Mono', monospace;
-        font-size: 11px;
-        font-weight: 500;
-        letter-spacing: 0.18em;
+      .brand-mark .word { font-family: "Source Serif 4", Georgia, serif; font-size: 22px; line-height: 1; letter-spacing: -0.02em; color: #fff; }
+      .brand-mark .word small { display: block; font-family: "Inter", sans-serif; font-size: 11px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: #8d9ab8; margin-top: 6px; }
+
+      .brand-pitch {
+        position: relative;
+        z-index: 1;
+        max-width: 480px;
+      }
+
+      .brand-pitch h1 {
+        font-family: "Source Serif 4", Georgia, serif;
+        font-weight: 700;
+        font-size: clamp(34px, 3.4vw, 46px);
+        line-height: 1.08;
+        letter-spacing: -0.025em;
+        color: #fff;
+      }
+
+      .brand-pitch h1 em {
+        font-style: normal;
+        background: linear-gradient(120deg, #a4b4ff, #d6c4ff 60%, #ffe2c4);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+
+      .brand-pitch p {
+        margin-top: 18px;
+        font-size: 15.5px;
+        line-height: 1.65;
+        color: #a8b3cf;
+        max-width: 440px;
+      }
+
+      .brand-stats {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 18px;
+        padding-top: 26px;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .brand-stat .label {
+        font-size: 10.5px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
         text-transform: uppercase;
-        color: var(--text-muted);
-        margin-bottom: 6px;
+        color: #8d9ab8;
       }
 
-      .card-title {
+      .brand-stat .value {
+        margin-top: 6px;
+        font-family: "Source Serif 4", Georgia, serif;
         font-size: 22px;
-        font-weight: 600;
+        font-weight: 700;
+        color: #fff;
+        letter-spacing: -0.01em;
+      }
+
+      /* ───── Right form panel ───── */
+      .auth-form {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 48px 56px;
+        background: var(--surface);
+      }
+
+      .auth-card {
+        width: 100%;
+        max-width: 440px;
+      }
+
+      .auth-eyebrow {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin-bottom: 12px;
+      }
+
+      .auth-card h2 {
+        font-family: "Source Serif 4", Georgia, serif;
+        font-size: 30px;
+        font-weight: 700;
+        letter-spacing: -0.025em;
         color: var(--text);
-        letter-spacing: -0.3px;
+        line-height: 1.15;
       }
 
-      .card-subtitle {
-        font-size: 13px;
-        color: var(--text-muted);
-        margin-top: 4px;
+      .auth-card .subtitle {
+        margin-top: 8px;
+        color: var(--text-soft);
+        font-size: 14.5px;
       }
 
-      /* ── Form elements ── */
-      .form-group {
-        margin-bottom: 16px;
+      .form-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        margin-top: 30px;
       }
 
-      label {
+      .form-group label {
         display: block;
         font-size: 12px;
-        font-weight: 500;
-        color: var(--text-muted);
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
+        font-weight: 600;
+        color: var(--text-soft);
         margin-bottom: 6px;
       }
 
       input, select {
         width: 100%;
-        padding: 10px 13px;
-        border: 1px solid var(--border);
-        border-radius: 6px;
-        font-family: 'DM Sans', sans-serif;
-        font-size: 14px;
+        padding: 11px 13px;
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+        background: #fff;
         color: var(--text);
-        background: #faf9f7;
+        font-family: inherit;
+        font-size: 14px;
+        line-height: 1.4;
         transition: border-color var(--transition), box-shadow var(--transition);
         outline: none;
+        appearance: none;
         -webkit-appearance: none;
       }
 
-      input:focus, select:focus {
-        border-color: var(--accent);
-        box-shadow: 0 0 0 3px rgba(26,58,42,0.08);
-        background: #fff;
+      input::placeholder { color: #aab1c4; }
+      input:hover, select:hover { border-color: #afb8d0; }
+      input:focus, select:focus { border-color: var(--accent); box-shadow: var(--ring); }
+
+      .form-row-2 {
+        display: grid;
+        gap: 14px;
+        grid-template-columns: 1fr 1fr;
       }
 
-      /* ── Buttons ── */
       .btn {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        gap: 7px;
+        gap: 8px;
         width: 100%;
-        padding: 11px 18px;
-        border: none;
-        border-radius: 6px;
-        font-family: 'DM Sans', sans-serif;
+        padding: 12px 16px;
+        border: 1px solid var(--border-strong);
+        background: var(--surface);
+        color: var(--text);
+        border-radius: 10px;
+        font-family: inherit;
         font-size: 14px;
-        font-weight: 500;
+        font-weight: 600;
         cursor: pointer;
-        transition: background var(--transition), transform 0.1s;
+        transition: background-color var(--transition), border-color var(--transition),
+          color var(--transition), transform var(--transition), box-shadow var(--transition);
       }
 
-      .btn:active { transform: scale(0.98); }
+      .btn:hover {
+        background: var(--surface-soft);
+        border-color: #b1bbd1;
+        transform: translateY(-1px);
+        box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
+      }
+
+      .btn:active { transform: translateY(0); }
 
       .btn-primary {
-        background: var(--accent);
+        background: linear-gradient(135deg, var(--accent) 0%, #5d77ff 100%);
+        border-color: var(--accent);
         color: #fff;
+        box-shadow: 0 6px 16px rgba(70, 99, 255, 0.3);
       }
-      .btn-primary:hover { background: var(--accent-hover); }
 
-      .btn-outline {
-        background: transparent;
-        color: var(--accent);
-        border: 1px solid var(--border);
+      .btn-primary:hover {
+        background: linear-gradient(135deg, var(--accent-hover) 0%, #4d65ff 100%);
+        border-color: var(--accent-hover);
+        box-shadow: 0 10px 24px rgba(36, 65, 200, 0.32);
       }
-      .btn-outline:hover { background: var(--accent-light); border-color: var(--accent); }
 
       .divider {
         display: flex;
         align-items: center;
         gap: 12px;
-        margin: 20px 0;
+        margin: 22px 0 16px;
         color: var(--text-muted);
-        font-size: 12px;
+        font-size: 11.5px;
+        font-weight: 600;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
       }
       .divider::before, .divider::after {
-        content: '';
+        content: "";
         flex: 1;
         height: 1px;
-        background: var(--border);
+        background: var(--divider);
       }
 
-      /* ── Message output ── */
       .output {
-        font-size: 13px;
-        margin-top: 10px;
+        font-size: 13.5px;
+        margin-top: 14px;
         min-height: 18px;
         color: var(--danger);
+        line-height: 1.45;
       }
-      .output.success { color: #1a7a40; }
-
-      #loginPanel, #registerPanel {
-        transition: opacity 0.2s ease;
-      }
-
-      #registerPanel {
-        display: none;
-        opacity: 0;
-      }
-
-      #registerPanel.visible {
-        display: block;
-        animation: fadeIn 0.25s ease forwards;
-      }
-
-      @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(6px); }
-        to   { opacity: 1; transform: translateY(0); }
-      }
+      .output.success { color: var(--ok); }
+      .output:empty { display: none; }
 
       .back-link {
         display: inline-flex;
         align-items: center;
-        gap: 5px;
-        font-size: 12px;
-        color: var(--text-muted);
+        gap: 6px;
+        font-size: 13px;
+        color: var(--text-soft);
         cursor: pointer;
         border: none;
         background: none;
         padding: 0;
         font-family: inherit;
-        margin-bottom: 24px;
+        font-weight: 500;
+        margin-bottom: 22px;
         transition: color var(--transition);
       }
+      .back-link::before { content: "←"; font-size: 15px; line-height: 1; }
       .back-link:hover { color: var(--accent); }
 
+      .legal {
+        margin-top: 26px;
+        font-size: 12px;
+        color: var(--text-muted);
+      }
+
+      #loginPanel, #registerPanel { transition: opacity 0.2s ease; }
+      #registerPanel { display: none; opacity: 0; }
+      #registerPanel.visible {
+        display: block;
+        animation: fadeIn 0.25s ease forwards;
+      }
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(6px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+
+      /* ───── Responsive ───── */
+      @media (max-width: 980px) {
+        .auth-shell { grid-template-columns: minmax(0, 1fr); }
+        .auth-brand { padding: 40px 32px 32px; gap: 28px; }
+        .brand-pitch h1 { font-size: 30px; }
+        .brand-pitch p { display: none; }
+        .brand-stats { display: none; }
+        .auth-form { padding: 36px 32px 56px; }
+      }
+
+      @media (max-width: 520px) {
+        .auth-brand { padding: 28px 22px; }
+        .auth-form { padding: 28px 22px 48px; }
+        .form-row-2 { grid-template-columns: 1fr; }
+      }
     </style>
   </head>
   <body>
-    <div class="card">
-
-      <!-- ═══════════════ SIGN IN PANEL ═══════════════ -->
-      <div id="loginPanel">
-        <div class="card-header">
-          <div class="brand">AZCON Procurement</div>
-          <div class="card-title">Welcome back</div>
-          <div class="card-subtitle">Sign in to your account</div>
+    <div class="auth-shell">
+      <!-- ═══════ Brand panel ═══════ -->
+      <aside class="auth-brand">
+        <div class="brand-mark">
+          <div class="logo">A</div>
+          <div class="word">
+            AZCON
+            <small>Smart Procurement</small>
+          </div>
         </div>
 
-        <div class="form-group">
-          <label for="username">Username</label>
-          <input id="username" value="faigtayibov" autocomplete="username" />
+        <div class="brand-pitch">
+          <h1>Procurement that <em>thinks</em> before it buys.</h1>
+          <p>
+            One workspace for storage demand, decider review, vendor sourcing and AI-driven
+            recommendations — wired together with the approval chain your auditors actually want.
+          </p>
         </div>
 
-        <div class="form-group">
-          <label for="password">Password</label>
-          <input id="password" type="password" value="1234" autocomplete="current-password" />
+        <div class="brand-stats">
+          <div class="brand-stat">
+            <div class="label">Companies</div>
+            <div class="value">13</div>
+          </div>
+          <div class="brand-stat">
+            <div class="label">Roles</div>
+            <div class="value">5-tier</div>
+          </div>
+          <div class="brand-stat">
+            <div class="label">Vendors curated</div>
+            <div class="value">156+</div>
+          </div>
         </div>
+      </aside>
 
-        <button id="btnLogin" class="btn btn-primary">Sign In</button>
-        <div id="loginMsg" class="output"></div>
+      <!-- ═══════ Form panel ═══════ -->
+      <main class="auth-form">
+        <div class="auth-card">
+          <!-- Sign-in -->
+          <div id="loginPanel">
+            <div class="auth-eyebrow">Sign in</div>
+            <h2>Welcome back.</h2>
+            <p class="subtitle">Use your AZCON credentials to access your workspace.</p>
 
-        <div class="divider">or</div>
-        <button id="showRegister" class="btn btn-outline">Register New Account</button>
-      </div>
+            <div class="form-stack">
+              <div class="form-group">
+                <label for="username">Username</label>
+                <input id="username" value="faigtayibov" autocomplete="username" />
+              </div>
 
-      <div id="registerPanel">
-        <button class="back-link" id="showLogin">Back to Sign In</button>
+              <div class="form-group">
+                <label for="password">Password</label>
+                <input id="password" type="password" value="1234" autocomplete="current-password" />
+              </div>
 
-        <div class="card-header">
-          <div class="brand">AZCON Procurement</div>
-          <div class="card-title">Request Access</div>
-          <div class="card-subtitle">Company admin -> Department admin -> Storage/Procurement approval chain.</div>
-        </div>
+              <button id="btnLogin" class="btn btn-primary">Sign In</button>
+              <div id="loginMsg" class="output"></div>
+            </div>
 
-        <div class="form-group">
-          <label for="regFullName">Full Name</label>
-          <input id="regFullName" placeholder="John Doe" />
-        </div>
-        <div class="form-group">
-          <label for="regUsername">Username</label>
-          <input id="regUsername" placeholder="johndoe" autocomplete="off" />
-        </div>
-        <div class="form-group">
-          <label for="regEmail">Email</label>
-          <input id="regEmail" type="email" placeholder="john@company.com" />
-        </div>
-        <div class="form-group">
-          <label for="regPassword">Password</label>
-          <input id="regPassword" type="password" placeholder="••••••••" autocomplete="new-password" />
-        </div>
-        <div class="form-group">
-          <label for="regCompany">Company</label>
-          <select id="regCompany"></select>
-        </div>
-        <div class="form-group">
-          <label for="regRole">Role</label>
-          <select id="regRole">
-            <option value="company_admin">Company Admin</option>
-            <option value="department_admin">Department Admin</option>
-            <option value="procurement_decider">Procurement Decider</option>
-            <option value="storage_holder">Storage Holder</option>
-          </select>
-        </div>
-        <div class="form-group" id="regDepartmentWrap">
-          <label for="regDepartment">Department</label>
-          <select id="regDepartment"></select>
-        </div>
-        <button id="btnRegister" class="btn btn-primary">Send Registration Request</button>
-        <div id="regMsg" class="output"></div>
-      </div>
+            <div class="divider">Or</div>
+            <button id="showRegister" class="btn">Request New Account</button>
 
+            <p class="legal">
+              By continuing you agree to AZCON's procurement governance policy. All actions are
+              logged for compliance.
+            </p>
+          </div>
+
+          <!-- Register -->
+          <div id="registerPanel">
+            <button class="back-link" id="showLogin">Back to sign in</button>
+
+            <div class="auth-eyebrow">Request access</div>
+            <h2>Create an AZCON account.</h2>
+            <p class="subtitle">
+              Company admin → Department admin → Storage / Procurement: each request goes up the
+              approval chain.
+            </p>
+
+            <div class="form-stack">
+              <div class="form-row-2">
+                <div class="form-group">
+                  <label for="regFullName">Full name</label>
+                  <input id="regFullName" placeholder="John Doe" />
+                </div>
+                <div class="form-group">
+                  <label for="regUsername">Username</label>
+                  <input id="regUsername" placeholder="johndoe" autocomplete="off" />
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="regEmail">Work email</label>
+                <input id="regEmail" type="email" placeholder="john@company.com" />
+              </div>
+
+              <div class="form-group">
+                <label for="regPassword">Password</label>
+                <input id="regPassword" type="password" placeholder="••••••••" autocomplete="new-password" />
+              </div>
+
+              <div class="form-row-2">
+                <div class="form-group">
+                  <label for="regCompany">Company</label>
+                  <select id="regCompany"></select>
+                </div>
+                <div class="form-group">
+                  <label for="regRole">Role</label>
+                  <select id="regRole">
+                    <option value="company_admin">Company Admin</option>
+                    <option value="department_admin">Department Admin</option>
+                    <option value="procurement_decider">Procurement Decider</option>
+                    <option value="storage_holder">Storage Holder</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-group" id="regDepartmentWrap">
+                <label for="regDepartment">Department</label>
+                <select id="regDepartment"></select>
+              </div>
+
+              <button id="btnRegister" class="btn btn-primary">Send Registration Request</button>
+              <div id="regMsg" class="output"></div>
+            </div>
+          </div>
+        </div>
+      </main>
     </div>
 
-    <script src="login.js?v=6"></script>
+    <script src="login.js?v=9"></script>
   </body>
 </html>

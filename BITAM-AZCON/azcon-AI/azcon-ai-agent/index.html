@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AZCON Smart Procurement</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 text-slate-800">
+  <div class="min-h-screen p-4 md:p-8">
+    <div class="max-w-7xl mx-auto">
+      <header class="mb-6">
+        <h1 class="text-2xl md:text-3xl font-bold">AZCON Smart Procurement Dashboard</h1>
+        <p class="text-slate-600 mt-1">Compare vendors for product and service requests intelligently.</p>
+      </header>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <aside class="lg:col-span-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+          <h2 class="text-lg font-semibold mb-4">Search Filters</h2>
+          <form id="searchForm" class="space-y-4">
+            <div>
+              <p class="text-sm font-medium mb-2">Search Type</p>
+              <div class="flex gap-4">
+                <label class="inline-flex items-center gap-2"><input type="radio" name="procurementType" value="product" checked class="text-blue-600" /> Product</label>
+                <label class="inline-flex items-center gap-2"><input type="radio" name="procurementType" value="service" class="text-blue-600" /> Service</label>
+              </div>
+            </div>
+
+            <div>
+              <label for="query" class="block text-sm font-medium mb-1">Search Keyword</label>
+              <input id="query" type="text" required class="w-full rounded-xl border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400" placeholder="Example: A4 paper or penetration testing service" />
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label for="category" class="block text-sm font-medium mb-1">Category</label>
+                <select id="category" class="w-full rounded-xl border border-slate-300 px-3 py-2 bg-white">
+                  <option value="IT & Tech">IT & Tech</option>
+                  <option value="Construction & Heavy">Construction & Heavy</option>
+                  <option value="Logistics & Aviation">Logistics & Aviation</option>
+                  <option value="Maritime">Maritime</option>
+                  <option value="Others">Others</option>
+                </select>
+              </div>
+              <div>
+                <label for="unit" class="block text-sm font-medium mb-1">Unit</label>
+                <select id="unit" class="w-full rounded-xl border border-slate-300 px-3 py-2 bg-white">
+                  <option value="piece">piece</option>
+                  <option value="kg">kg</option>
+                  <option value="ton">ton</option>
+                  <option value="liter">liter</option>
+                  <option value="meter">meter</option>
+                  <option value="box">box</option>
+                  <option value="container">container</option>
+                </select>
+              </div>
+            </div>
+
+            <div id="productFields" class="space-y-4">
+              <div>
+                <label for="quantity" class="block text-sm font-medium mb-1">Quantity</label>
+                <input id="quantity" type="number" min="1" value="50" class="w-full rounded-xl border border-slate-300 px-3 py-2" />
+              </div>
+              <div>
+                <label for="deadline" class="block text-sm font-medium mb-1">Delivery Deadline</label>
+                <input id="deadline" type="date" class="w-full rounded-xl border border-slate-300 px-3 py-2" />
+              </div>
+            </div>
+
+            <div id="serviceFields" class="space-y-4 hidden">
+              <div>
+                <label for="serviceDuration" class="block text-sm font-medium mb-1">Service Duration</label>
+                <input id="serviceDuration" type="text" placeholder="Example: 6 months or 120 hours" class="w-full rounded-xl border border-slate-300 px-3 py-2" />
+              </div>
+              <div>
+                <label for="startDate" class="block text-sm font-medium mb-1">Start Date</label>
+                <input id="startDate" type="date" class="w-full rounded-xl border border-slate-300 px-3 py-2" />
+              </div>
+              <div>
+                <label for="serviceLevel" class="block text-sm font-medium mb-1">Service Level (SLA)</label>
+                <select id="serviceLevel" class="w-full rounded-xl border border-slate-300 px-3 py-2">
+                  <option value="Standard">Standard</option>
+                  <option value="Business">Business</option>
+                  <option value="Enterprise 24/7">Enterprise 24/7</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label for="totalBudget" class="block text-sm font-medium mb-1">Total Budget (Max, AZN)</label>
+              <input id="totalBudget" type="number" min="1" step="0.01" value="50000" class="w-full rounded-xl border border-slate-300 px-3 py-2" required />
+            </div>
+
+            <div>
+              <label for="minReliability" class="block text-sm font-medium mb-1">Minimum Reliability: <span id="reliabilityValue" class="font-semibold">4.0</span></label>
+              <input id="minReliability" type="range" min="1" max="5" step="0.1" value="4.0" class="w-full accent-blue-600" />
+            </div>
+
+            <div class="flex items-center gap-2">
+              <input id="azconOnly" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600" />
+              <label for="azconOnly" class="text-sm font-medium">AZCON internal only</label>
+            </div>
+
+            <button id="submitBtn" type="submit" class="w-full rounded-xl bg-blue-600 text-white py-2.5 font-semibold hover:bg-blue-700 transition">Search</button>
+          </form>
+        </aside>
+
+        <section class="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold">Results Panel</h2>
+            <div class="flex items-center gap-3">
+              <select id="sortMode" class="rounded-lg border border-slate-300 px-3 py-1.5 text-sm">
+                <option value="cheap">Cheapest</option>
+                <option value="rating">Best Rating</option>
+                <option value="fast">Fastest</option>
+              </select>
+              <span id="resultCount" class="text-sm text-slate-500">0 offers</span>
+            </div>
+          </div>
+
+          <div id="loading" class="hidden mb-4 flex items-center gap-3 text-blue-700 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+            <div class="h-5 w-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            <span>Searching, please wait...</span>
+          </div>
+
+          <div id="errorBox" class="hidden mb-4 rounded-xl border border-red-200 bg-red-50 text-red-700 px-4 py-3"></div>
+          <div id="emptyState" class="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-10 text-center text-slate-500">Fill the filters and click "Search".</div>
+          <div id="offersContainer" class="hidden grid grid-cols-1 xl:grid-cols-2 gap-4"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById("searchForm");
+    const queryInput = document.getElementById("query");
+    const quantityInput = document.getElementById("quantity");
+    const deadlineInput = document.getElementById("deadline");
+    const totalBudgetInput = document.getElementById("totalBudget");
+    const categoryInput = document.getElementById("category");
+    const unitInput = document.getElementById("unit");
+    const serviceDurationInput = document.getElementById("serviceDuration");
+    const startDateInput = document.getElementById("startDate");
+    const serviceLevelInput = document.getElementById("serviceLevel");
+    const minReliabilityInput = document.getElementById("minReliability");
+    const reliabilityValue = document.getElementById("reliabilityValue");
+    const azconOnlyInput = document.getElementById("azconOnly");
+    const productFields = document.getElementById("productFields");
+    const serviceFields = document.getElementById("serviceFields");
+    const loadingEl = document.getElementById("loading");
+    const errorBox = document.getElementById("errorBox");
+    const emptyState = document.getElementById("emptyState");
+    const offersContainer = document.getElementById("offersContainer");
+    const resultCount = document.getElementById("resultCount");
+    const sortMode = document.getElementById("sortMode");
+    const submitBtn = document.getElementById("submitBtn");
+    let latestOffers = [];
+    let latestType = "product";
+    let hasAutoSearched = false;
+
+    const plusDays = (d) => new Date(Date.now() + d * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    deadlineInput.value = plusDays(7);
+    startDateInput.value = plusDays(3);
+
+    minReliabilityInput.addEventListener("input", () => {
+      reliabilityValue.textContent = Number(minReliabilityInput.value).toFixed(1);
+    });
+
+    function getProcurementType() {
+      return document.querySelector('input[name="procurementType"]:checked').value;
+    }
+
+    function toggleModeFields() {
+      const type = getProcurementType();
+      const isProduct = type === "product";
+      productFields.classList.toggle("hidden", !isProduct);
+      serviceFields.classList.toggle("hidden", isProduct);
+      quantityInput.required = isProduct;
+      deadlineInput.required = isProduct;
+      serviceDurationInput.required = !isProduct;
+      startDateInput.required = !isProduct;
+      serviceLevelInput.required = !isProduct;
+    }
+
+    document.querySelectorAll('input[name="procurementType"]').forEach((el) => el.addEventListener("change", toggleModeFields));
+    toggleModeFields();
+
+    function prefillFromRequestQueryParams() {
+      const p = new URLSearchParams(window.location.search);
+      if (!p.has("query")) return;
+
+      const procurementType = p.get("procurement_type") || "product";
+      const targetRadio = document.querySelector(`input[name="procurementType"][value="${procurementType}"]`);
+      if (targetRadio) targetRadio.checked = true;
+
+      queryInput.value = p.get("query") || queryInput.value;
+      totalBudgetInput.value = p.get("total_budget") || totalBudgetInput.value;
+      quantityInput.value = p.get("quantity") || quantityInput.value;
+      deadlineInput.value = p.get("deadline") || deadlineInput.value;
+      startDateInput.value = p.get("start_date") || startDateInput.value;
+      serviceDurationInput.value = p.get("service_duration") || serviceDurationInput.value;
+      serviceLevelInput.value = p.get("service_level") || serviceLevelInput.value;
+
+      const unitParam = p.get("unit");
+      if (unitParam && unitInput) {
+        const optExists = Array.from(unitInput.options).some((o) => o.value === unitParam);
+        if (optExists) unitInput.value = unitParam;
+      }
+
+      const minRel = p.get("min_reliability_score");
+      if (minRel && minReliabilityInput) {
+        minReliabilityInput.value = minRel;
+        if (reliabilityValue) reliabilityValue.textContent = Number(minRel).toFixed(1);
+      }
+
+      const azconOnly = p.get("azcon_reference_required");
+      if (azconOnly && azconOnlyInput) {
+        azconOnlyInput.checked = azconOnly === "true" || azconOnly === "1";
+      }
+
+      // Department now follows the AI-agent category vocabulary directly.
+      const depRaw = (p.get("department") || "").trim();
+      const validCategories = ["IT & Tech", "Construction & Heavy", "Logistics & Aviation", "Maritime", "Others"];
+      if (validCategories.includes(depRaw)) {
+        categoryInput.value = depRaw;
+      } else {
+        // Backward-compat for any legacy strings still in the URL.
+        const dep = depRaw.toLowerCase();
+        if (dep.includes("it")) categoryInput.value = "IT & Tech";
+        else if (dep.includes("logistics")) categoryInput.value = "Logistics & Aviation";
+        else if (dep.includes("telecom")) categoryInput.value = "IT & Tech";
+        else if (dep.includes("construction")) categoryInput.value = "Construction & Heavy";
+        else if (dep.includes("maritime")) categoryInput.value = "Maritime";
+        else categoryInput.value = "Others";
+      }
+
+      toggleModeFields();
+      emptyState.textContent = "Request data was prefilled. Click Search to get vendor options.";
+    }
+
+    function showLoading(isLoading) {
+      loadingEl.classList.toggle("hidden", !isLoading);
+      if (submitBtn) submitBtn.disabled = isLoading;
+    }
+
+    function showError(message) {
+      errorBox.textContent = message;
+      errorBox.classList.remove("hidden");
+    }
+
+    function clearError() {
+      errorBox.textContent = "";
+      errorBox.classList.add("hidden");
+    }
+
+    function renderStars(score) {
+      const rounded = Math.round(score);
+      return "★".repeat(rounded) + "☆".repeat(5 - rounded);
+    }
+
+    function sourceBadge(sourceType) {
+      const internal = sourceType === "Internal AZCON";
+      return `<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${internal ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}">${sourceType}</span>`;
+    }
+
+    function getSpeedRank(logisticsInfo) {
+      const info = String(logisticsInfo || "").toLowerCase();
+      if (info.includes("same-day") || info.includes("1 gün") || info.includes("24 saat")) return 0;
+      if (info.includes("2 gün") || info.includes("48 saat") || info.includes("sürətli")) return 1;
+      if (info.includes("3-5 gün") || info.includes("standart")) return 2;
+      return 3;
+    }
+
+    function sortOffers(offers) {
+      const mode = sortMode.value;
+      const sorted = [...offers];
+      if (mode === "rating") {
+        sorted.sort((a, b) => Number(b.reliability_score || 0) - Number(a.reliability_score || 0));
+      } else if (mode === "fast") {
+        sorted.sort((a, b) => getSpeedRank(a.logistics_info) - getSpeedRank(b.logistics_info));
+      } else {
+        sorted.sort((a, b) => Number(a.total_price || 0) - Number(b.total_price || 0));
+      }
+      return sorted;
+    }
+
+    function renderOffers(offers, type) {
+      offersContainer.innerHTML = "";
+      if (!offers.length) {
+        offersContainer.classList.add("hidden");
+        emptyState.classList.remove("hidden");
+        emptyState.textContent = "No results found";
+        resultCount.textContent = "0 offers";
+        return;
+      }
+
+      const sortedOffers = sortOffers(offers);
+
+      sortedOffers.forEach((offer) => {
+        const linkHtml = offer.source_link === "Internal"
+          ? '<span class="text-slate-500 text-sm">Internal</span>'
+          : offer.source_link === "Link tapılmadı"
+          ? '<span class="text-slate-500 text-sm">No link</span>'
+            : `<a href="${offer.source_link}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline text-sm break-all">View source</a>`;
+
+        const modeInfo = type === "product"
+          ? `<p class="text-slate-500">Available quantity</p><p class="font-semibold">${offer.quantity_available ?? 0}</p>`
+          : `<p class="text-slate-500">Service duration</p><p class="font-semibold">${offer.service_duration ?? "-"}</p>`;
+        const smartBatchBadge = offer.smart_batching_applied === true
+          ? `<div class="mb-3 rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 shadow-[0_0_14px_rgba(16,185,129,0.35)]">
+              Shared shipping: another AZCON department has a matching shipment window; logistics cost saved by 50%.
+            </div>`
+          : "";
+
+        const card = document.createElement("article");
+        card.className = "rounded-2xl border border-slate-200 p-4 bg-white shadow-sm";
+        card.innerHTML = `
+          <div class="flex items-start justify-between gap-2 mb-3">
+            <div>
+              <h3 class="font-semibold text-base">${offer.item_name}</h3>
+              <p class="text-sm text-slate-600">${offer.company_name}</p>
+            </div>
+            ${sourceBadge(offer.source_type)}
+          </div>
+          ${smartBatchBadge}
+          <div class="grid grid-cols-2 gap-3 text-sm mb-3">
+            <div class="bg-slate-50 rounded-xl p-3"><p class="text-slate-500">Unit price</p><p class="font-semibold">${Number(offer.price_per_unit).toFixed(2)} AZN</p></div>
+            <div class="bg-slate-50 rounded-xl p-3"><p class="text-slate-500">Total price</p><p class="font-semibold">${Number(offer.total_price).toFixed(2)} AZN</p></div>
+            <div class="bg-slate-50 rounded-xl p-3">${modeInfo}</div>
+            <div class="bg-slate-50 rounded-xl p-3"><p class="text-slate-500">Reliability</p><p class="font-semibold text-amber-600">${renderStars(Number(offer.reliability_score))} <span class="text-slate-700">(${Number(offer.reliability_score).toFixed(1)})</span></p></div>
+          </div>
+          <div class="mb-2">
+            <p class="text-xs uppercase tracking-wide text-slate-500">Logistics</p>
+            <p class="text-sm text-slate-700">${offer.logistics_info || "No logistics info"}</p>
+          </div>
+          <div class="pt-2 border-t border-slate-100">${linkHtml}</div>
+        `;
+        offersContainer.appendChild(card);
+      });
+
+      emptyState.classList.add("hidden");
+      offersContainer.classList.remove("hidden");
+      resultCount.textContent = `${sortedOffers.length} offers`;
+    }
+
+    async function onSubmit(event) {
+      event.preventDefault();
+      clearError();
+      showLoading(true);
+      const type = getProcurementType();
+
+      const payload = {
+        procurement_type: type,
+        query: queryInput.value.trim(),
+        category: categoryInput.value,
+        total_budget: parseFloat(totalBudgetInput.value),
+        min_reliability_score: Number(minReliabilityInput.value),
+        azcon_reference_required: azconOnlyInput.checked
+      };
+
+      if (type === "product") {
+        payload.unit = unitInput.value;
+        payload.quantity = parseFloat(quantityInput.value);
+        payload.deadline = deadlineInput.value;
+      } else {
+        payload.service_duration = serviceDurationInput.value.trim();
+        payload.start_date = startDateInput.value;
+        payload.service_level = serviceLevelInput.value;
+      }
+
+      try {
+        const response = await fetch("/api/search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        let data;
+        try {
+          data = await response.json();
+        } catch (_) {
+          throw new Error("JSON parse error.");
+        }
+
+        if (!response.ok) {
+          throw new Error(data.detail || "Backend error.");
+        }
+
+        latestOffers = Array.isArray(data.offers) ? data.offers : [];
+        latestType = type;
+        renderOffers(latestOffers, latestType);
+      } catch (err) {
+        offersContainer.classList.add("hidden");
+        emptyState.classList.remove("hidden");
+        emptyState.textContent = "No results found";
+        resultCount.textContent = "0 offers";
+        const errorMessage = String(err && err.message ? err.message : "");
+        if (errorMessage.includes("Failed to fetch") || errorMessage.includes("NetworkError")) {
+          showError("Could not connect to server. Ensure FastAPI is running at http://127.0.0.1:8000.");
+        } else {
+          showError(errorMessage || "Unknown error.");
+        }
+      } finally {
+        showLoading(false);
+      }
+    }
+
+    form.addEventListener("submit", onSubmit);
+    sortMode.addEventListener("change", () => renderOffers(latestOffers, latestType));
+    prefillFromRequestQueryParams();
+    if (new URLSearchParams(window.location.search).has("query") && !hasAutoSearched) {
+      hasAutoSearched = true;
+      form.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+    }
+  </script>
+</body>
+</html>
