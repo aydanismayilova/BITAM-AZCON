@@ -1,0 +1,3 @@
+[submodule "BITAM-AZCON/BITAM-AZCON"]
+	path = BITAM-AZCON/BITAM-AZCON
+	url = https://github.com/aydanismayilova/BITAM-AZCON.git
